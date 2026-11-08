@@ -1,6 +1,6 @@
 // Showcase page: the pond itself is the page background.
 (function () {
-  const pond = KoiPond.create({ count: 10 });
+  const pond = KoiPond.create({ count: 10, water: true });
   window.koiPond = pond;
 
   // --- Dock controls
@@ -88,6 +88,14 @@
   customInput.addEventListener('input', () => {
     bgChoice = customInput.value;
     applyLook();
+  });
+
+  // --- Water toggle: faint light on the water, ripples where you click.
+  const waterBtn = document.querySelector('[data-action="water"]');
+  waterBtn.addEventListener('click', () => {
+    const on = waterBtn.getAttribute('aria-pressed') !== 'true';
+    waterBtn.setAttribute('aria-pressed', String(on));
+    pond.set({ water: on });
   });
 
   // --- Butterfly koi toggle: about 1 in 4 fish get long, flowing fins.

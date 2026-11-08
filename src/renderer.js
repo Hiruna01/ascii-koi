@@ -6,7 +6,8 @@
 // Pass 2 (dither): every screen pixel finds its dot, reads the ink amount and
 // picks one of a few palette tones (paper, pale, light, mid, deep ink). Between
 // two tones, an ordered-dither threshold (8x8 Bayer matrix, or a line screen)
-// decides which of the two the dot gets. The dot's colour is the ink colour,
+// decides which of the two the dot gets. With water on, a pass in between adds
+// faint light on the water, ripple rings and a slight refraction of the fish. The dot's colour is the ink colour,
 // or with real koi colours, the pigment colour of the fish under it.
 
 const SCENE_VS = `#version 300 es
@@ -278,6 +279,88 @@ void main() {
   gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
+// Optional water pass (scene resolution): faint drifting light on the water,
+// ripple rings from clicks, and a slight refraction of the fish beneath. Its
+// output goes through the same dithering, so the water is made of the same dots.
+const WATER_FS = `#version 300 es
+precision highp float;
+precision highp int;
+uniform sampler2D u_fishInk;
+uniform sampler2D u_fishColor;
+uniform float u_cssPerTexel;
+uniform float u_time;
+uniform float u_amount;
+uniform vec4 u_ripples[8]; // x, y (CSS px), age (s), strength
+uniform int u_rippleCount;
+uniform vec3 u_waterColor;
+layout(location = 0) out vec4 oInk;
+layout(location = 1) out vec4 oColor;
+
+const float RIPPLE_SPEED = 110.0; // CSS px per second
+const float RIPPLE_LIFE = 2.2;    // seconds
+
+float hash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+void main() {
+  ivec2 ts = textureSize(u_fishInk, 0);
+  vec2 fc = gl_FragCoord.xy;
+  vec2 css = vec2(fc.x, float(ts.y) - fc.y) * u_cssPerTexel; // CSS px, y down
+  float t = u_time;
+
+  // Light on the water: thin lines where two slowly drifting noise fields meet.
+  vec2 p = css / 170.0;
+  float n1 = vnoise(p + vec2(t * 0.05, t * 0.03));
+  float n2 = vnoise(p * 1.3 - vec2(t * 0.04, -t * 0.05) + 7.3);
+  float caustic = 1.0 - smoothstep(0.0, 0.022, abs(n1 - n2));
+  // Lines come and go, and large parts of the pond have none at all.
+  caustic *= smoothstep(0.35, 0.75, vnoise(p * 0.45 + vec2(t * 0.02, -t * 0.015)));
+  float water = caustic * 0.06;
+  vec2 offs = vec2(n1 - 0.5, n2 - 0.5) * 0.6; // a tiny wobble, in texels
+
+  // Ripples: a few thin rings spreading from each click, fading out.
+  for (int i = 0; i < 8; i++) {
+    if (i >= u_rippleCount) break;
+    vec4 r = u_ripples[i];
+    vec2 d = css - r.xy;
+    float dist = length(d);
+    float age = r.z;
+    float R = age * RIPPLE_SPEED;
+    float fade = pow(max(0.0, 1.0 - age / RIPPLE_LIFE), 1.4);
+    fade *= smoothstep(0.0, 0.08, age) * r.w;
+    float ring = 0.0;
+    for (int k = 0; k < 3; k++) {
+      float rk = R - float(k) * 20.0;
+      if (rk > 0.0) ring += exp(-pow((dist - rk) / 5.0, 2.0)) * (1.0 - float(k) * 0.3);
+    }
+    water += ring * fade * 0.4;
+    // Refraction: the fish under a passing ring shift along it, then back.
+    float wave = sin((dist - R) * 0.32) * exp(-pow((dist - R + 20.0) / 28.0, 2.0)) * fade;
+    offs += (d / max(dist, 1e-3)) * wave * 1.6;
+  }
+  water = min(water * u_amount, 0.6);
+
+  ivec2 src = clamp(ivec2(fc + vec2(offs.x, -offs.y)), ivec2(0), ts - 1);
+  float fish = texelFetch(u_fishInk, src, 0).r;
+  vec4 fc4 = texelFetch(u_fishColor, src, 0);
+  vec3 fishCol = fc4.rgb / max(fc4.a, 1e-3);
+
+  float total = fish + water * (1.0 - fish);
+  vec3 col = total > 0.0 ? (fishCol * fish + u_waterColor * water * (1.0 - fish)) / max(total, 1e-4) : vec3(0.0);
+  oInk = vec4(total, 0.0, 0.0, 1.0);
+  oColor = vec4(col, total > 0.0 ? 1.0 : 0.0);
+}`;
+
 const DITHER_FS = `#version 300 es
 precision highp float;
 precision highp int;
@@ -371,6 +454,17 @@ function program(gl, vs, fs) {
 export function createRenderer(gl) {
   const sceneProg = program(gl, SCENE_VS, SCENE_FS);
   const ditherProg = program(gl, DITHER_VS, DITHER_FS);
+  const waterProg = program(gl, DITHER_VS, WATER_FS);
+  const wloc = {
+    fishInk: gl.getUniformLocation(waterProg, 'u_fishInk'),
+    fishColor: gl.getUniformLocation(waterProg, 'u_fishColor'),
+    cssPerTexel: gl.getUniformLocation(waterProg, 'u_cssPerTexel'),
+    time: gl.getUniformLocation(waterProg, 'u_time'),
+    amount: gl.getUniformLocation(waterProg, 'u_amount'),
+    ripples: gl.getUniformLocation(waterProg, 'u_ripples'),
+    rippleCount: gl.getUniformLocation(waterProg, 'u_rippleCount'),
+    waterColor: gl.getUniformLocation(waterProg, 'u_waterColor'),
+  };
   const loc = {
     res: gl.getUniformLocation(sceneProg, 'u_res'),
     sceneNatural: gl.getUniformLocation(sceneProg, 'u_natural'),
@@ -415,6 +509,9 @@ export function createRenderer(gl) {
   const tex = makeTex(); // ink amount
   const colorTex = makeTex(); // pigment colour (real koi colours)
   const fbo = gl.createFramebuffer();
+  const waterTex = makeTex(); // ink amount with water
+  const waterColorTex = makeTex(); // colour with water
+  const waterFbo = gl.createFramebuffer();
   let sceneW = 0;
   let sceneH = 0;
 
@@ -430,6 +527,14 @@ export function createRenderer(gl) {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, colorTex, 0);
     gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+    gl.bindTexture(gl.TEXTURE_2D, waterTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, w, h, 0, gl.RED, gl.UNSIGNED_BYTE, null);
+    gl.bindTexture(gl.TEXTURE_2D, waterColorTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, waterFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, waterTex, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, waterColorTex, 0);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
@@ -439,7 +544,9 @@ export function createRenderer(gl) {
      *          vertices: Float32Array, count, mode: 0|1, ink:[r,g,b], bg:[r,g,b,a],
      *          stops: [0, ..., 1] ink amount of each palette tone,
      *          natural: true for real koi colours instead of the single ink colour,
-     *          light: 0..1, how light the background is }
+     *          light: 0..1, how light the background is,
+     *          water: null, or { time, amount, ripples: Float32Array(32), rippleCount,
+     *                            color: [r,g,b], cssPerDot } }
      */
     render(frame) {
       const sw = Math.max(1, Math.ceil(frame.canvasW / frame.dot));
@@ -466,15 +573,41 @@ export function createRenderer(gl) {
         gl.disable(gl.BLEND);
       }
 
+      // Optional water pass: light, ripples and refraction, still at dot resolution.
+      let inkSrc = tex;
+      let colorSrc = colorTex;
+      const w = frame.water;
+      if (w) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, waterFbo);
+        gl.viewport(0, 0, sw, sh);
+        gl.useProgram(waterProg);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.uniform1i(wloc.fishInk, 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, colorTex);
+        gl.uniform1i(wloc.fishColor, 1);
+        gl.uniform1f(wloc.cssPerTexel, frame.cssPerDot);
+        gl.uniform1f(wloc.time, w.time);
+        gl.uniform1f(wloc.amount, w.amount);
+        gl.uniform4fv(wloc.ripples, w.ripples);
+        gl.uniform1i(wloc.rippleCount, w.rippleCount);
+        gl.uniform3fv(wloc.waterColor, w.color);
+        gl.bindVertexArray(emptyVao);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        inkSrc = waterTex;
+        colorSrc = waterColorTex;
+      }
+
       // Pass 2: dither to the canvas.
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, frame.canvasW, frame.canvasH);
       gl.useProgram(ditherProg);
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.bindTexture(gl.TEXTURE_2D, inkSrc);
       gl.uniform1i(loc.scene, 0);
       gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, colorTex);
+      gl.bindTexture(gl.TEXTURE_2D, colorSrc);
       gl.uniform1i(loc.color, 1);
       gl.uniform1i(loc.natural, frame.natural ? 1 : 0);
       gl.activeTexture(gl.TEXTURE0);
@@ -495,6 +628,10 @@ export function createRenderer(gl) {
     dispose() {
       gl.deleteProgram(sceneProg);
       gl.deleteProgram(ditherProg);
+      gl.deleteProgram(waterProg);
+      gl.deleteTexture(waterTex);
+      gl.deleteTexture(waterColorTex);
+      gl.deleteFramebuffer(waterFbo);
       gl.deleteBuffer(vbo);
       gl.deleteVertexArray(vao);
       gl.deleteVertexArray(emptyVao);

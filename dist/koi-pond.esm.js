@@ -244,6 +244,23 @@ function hitTest(fish, px2, py2, pad = 6) {
   }
   return false;
 }
+function startle(fish, strength = 1, away = null) {
+  const rand = fish.rand;
+  if (fish.burst < 0.35) {
+    let side;
+    if (away == null) {
+      side = rand() < 0.5 ? -1 : 1;
+      fish.heading = fish.angle + side * (0.5 + rand() * 0.6);
+    } else {
+      side = angleDiff(away, fish.angle) >= 0 ? 1 : -1;
+      fish.heading = away + (rand() - 0.5) * 0.6;
+    }
+    fish.flick = side * (1.6 + rand() * 1) * (0.6 + 0.4 * strength);
+    fish.amp = Math.max(fish.amp, 1.1);
+    fish.rest = 0;
+  }
+  fish.burst = Math.max(fish.burst, strength);
+}
 function stepFish(fish, dt, time, opts) {
   const { bounds, fishes, pointer } = opts;
   const s = fish.spine;
@@ -290,16 +307,7 @@ function stepFish(fish, dt, time, opts) {
       }
     }
   }
-  if (pointer && pointer.active && hitTest(fish, pointer.x, pointer.y)) {
-    if (fish.burst < 0.35) {
-      const side = rand() < 0.5 ? -1 : 1;
-      fish.flick = side * (1.6 + rand() * 1);
-      fish.heading = fish.angle + side * (0.5 + rand() * 0.6);
-      fish.amp = Math.max(fish.amp, 1.1);
-      fish.rest = 0;
-    }
-    fish.burst = 1;
-  }
+  if (pointer && pointer.active && hitTest(fish, pointer.x, pointer.y)) startle(fish, 1);
   fish.burst *= Math.exp(-dt / Math.max(0.05, opts.dartDuration * 0.45));
   fish.flick *= Math.exp(-dt / 0.15);
   const speedRatio = fish.speed / L;
@@ -802,6 +810,84 @@ void main() {
   vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
   gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
 }`;
+var WATER_FS = `#version 300 es
+precision highp float;
+precision highp int;
+uniform sampler2D u_fishInk;
+uniform sampler2D u_fishColor;
+uniform float u_cssPerTexel;
+uniform float u_time;
+uniform float u_amount;
+uniform vec4 u_ripples[8]; // x, y (CSS px), age (s), strength
+uniform int u_rippleCount;
+uniform vec3 u_waterColor;
+layout(location = 0) out vec4 oInk;
+layout(location = 1) out vec4 oColor;
+
+const float RIPPLE_SPEED = 110.0; // CSS px per second
+const float RIPPLE_LIFE = 2.2;    // seconds
+
+float hash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+void main() {
+  ivec2 ts = textureSize(u_fishInk, 0);
+  vec2 fc = gl_FragCoord.xy;
+  vec2 css = vec2(fc.x, float(ts.y) - fc.y) * u_cssPerTexel; // CSS px, y down
+  float t = u_time;
+
+  // Light on the water: thin lines where two slowly drifting noise fields meet.
+  vec2 p = css / 170.0;
+  float n1 = vnoise(p + vec2(t * 0.05, t * 0.03));
+  float n2 = vnoise(p * 1.3 - vec2(t * 0.04, -t * 0.05) + 7.3);
+  float caustic = 1.0 - smoothstep(0.0, 0.022, abs(n1 - n2));
+  // Lines come and go, and large parts of the pond have none at all.
+  caustic *= smoothstep(0.35, 0.75, vnoise(p * 0.45 + vec2(t * 0.02, -t * 0.015)));
+  float water = caustic * 0.06;
+  vec2 offs = vec2(n1 - 0.5, n2 - 0.5) * 0.6; // a tiny wobble, in texels
+
+  // Ripples: a few thin rings spreading from each click, fading out.
+  for (int i = 0; i < 8; i++) {
+    if (i >= u_rippleCount) break;
+    vec4 r = u_ripples[i];
+    vec2 d = css - r.xy;
+    float dist = length(d);
+    float age = r.z;
+    float R = age * RIPPLE_SPEED;
+    float fade = pow(max(0.0, 1.0 - age / RIPPLE_LIFE), 1.4);
+    fade *= smoothstep(0.0, 0.08, age) * r.w;
+    float ring = 0.0;
+    for (int k = 0; k < 3; k++) {
+      float rk = R - float(k) * 20.0;
+      if (rk > 0.0) ring += exp(-pow((dist - rk) / 5.0, 2.0)) * (1.0 - float(k) * 0.3);
+    }
+    water += ring * fade * 0.4;
+    // Refraction: the fish under a passing ring shift along it, then back.
+    float wave = sin((dist - R) * 0.32) * exp(-pow((dist - R + 20.0) / 28.0, 2.0)) * fade;
+    offs += (d / max(dist, 1e-3)) * wave * 1.6;
+  }
+  water = min(water * u_amount, 0.6);
+
+  ivec2 src = clamp(ivec2(fc + vec2(offs.x, -offs.y)), ivec2(0), ts - 1);
+  float fish = texelFetch(u_fishInk, src, 0).r;
+  vec4 fc4 = texelFetch(u_fishColor, src, 0);
+  vec3 fishCol = fc4.rgb / max(fc4.a, 1e-3);
+
+  float total = fish + water * (1.0 - fish);
+  vec3 col = total > 0.0 ? (fishCol * fish + u_waterColor * water * (1.0 - fish)) / max(total, 1e-4) : vec3(0.0);
+  oInk = vec4(total, 0.0, 0.0, 1.0);
+  oColor = vec4(col, total > 0.0 ? 1.0 : 0.0);
+}`;
 var DITHER_FS = `#version 300 es
 precision highp float;
 precision highp int;
@@ -892,6 +978,17 @@ function program(gl, vs, fs) {
 function createRenderer(gl) {
   const sceneProg = program(gl, SCENE_VS, SCENE_FS);
   const ditherProg = program(gl, DITHER_VS, DITHER_FS);
+  const waterProg = program(gl, DITHER_VS, WATER_FS);
+  const wloc = {
+    fishInk: gl.getUniformLocation(waterProg, "u_fishInk"),
+    fishColor: gl.getUniformLocation(waterProg, "u_fishColor"),
+    cssPerTexel: gl.getUniformLocation(waterProg, "u_cssPerTexel"),
+    time: gl.getUniformLocation(waterProg, "u_time"),
+    amount: gl.getUniformLocation(waterProg, "u_amount"),
+    ripples: gl.getUniformLocation(waterProg, "u_ripples"),
+    rippleCount: gl.getUniformLocation(waterProg, "u_rippleCount"),
+    waterColor: gl.getUniformLocation(waterProg, "u_waterColor")
+  };
   const loc = {
     res: gl.getUniformLocation(sceneProg, "u_res"),
     sceneNatural: gl.getUniformLocation(sceneProg, "u_natural"),
@@ -933,6 +1030,9 @@ function createRenderer(gl) {
   const tex = makeTex();
   const colorTex = makeTex();
   const fbo = gl.createFramebuffer();
+  const waterTex = makeTex();
+  const waterColorTex = makeTex();
+  const waterFbo = gl.createFramebuffer();
   let sceneW = 0;
   let sceneH = 0;
   function resizeScene(w, h) {
@@ -947,6 +1047,14 @@ function createRenderer(gl) {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, colorTex, 0);
     gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+    gl.bindTexture(gl.TEXTURE_2D, waterTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, w, h, 0, gl.RED, gl.UNSIGNED_BYTE, null);
+    gl.bindTexture(gl.TEXTURE_2D, waterColorTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, waterFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, waterTex, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, waterColorTex, 0);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
   return {
@@ -955,7 +1063,9 @@ function createRenderer(gl) {
      *          vertices: Float32Array, count, mode: 0|1, ink:[r,g,b], bg:[r,g,b,a],
      *          stops: [0, ..., 1] ink amount of each palette tone,
      *          natural: true for real koi colours instead of the single ink colour,
-     *          light: 0..1, how light the background is }
+     *          light: 0..1, how light the background is,
+     *          water: null, or { time, amount, ripples: Float32Array(32), rippleCount,
+     *                            color: [r,g,b], cssPerDot } }
      */
     render(frame) {
       const sw = Math.max(1, Math.ceil(frame.canvasW / frame.dot));
@@ -978,14 +1088,38 @@ function createRenderer(gl) {
         gl.drawArrays(gl.TRIANGLES, 0, frame.count);
         gl.disable(gl.BLEND);
       }
+      let inkSrc = tex;
+      let colorSrc = colorTex;
+      const w = frame.water;
+      if (w) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, waterFbo);
+        gl.viewport(0, 0, sw, sh);
+        gl.useProgram(waterProg);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.uniform1i(wloc.fishInk, 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, colorTex);
+        gl.uniform1i(wloc.fishColor, 1);
+        gl.uniform1f(wloc.cssPerTexel, frame.cssPerDot);
+        gl.uniform1f(wloc.time, w.time);
+        gl.uniform1f(wloc.amount, w.amount);
+        gl.uniform4fv(wloc.ripples, w.ripples);
+        gl.uniform1i(wloc.rippleCount, w.rippleCount);
+        gl.uniform3fv(wloc.waterColor, w.color);
+        gl.bindVertexArray(emptyVao);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        inkSrc = waterTex;
+        colorSrc = waterColorTex;
+      }
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, frame.canvasW, frame.canvasH);
       gl.useProgram(ditherProg);
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.bindTexture(gl.TEXTURE_2D, inkSrc);
       gl.uniform1i(loc.scene, 0);
       gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, colorTex);
+      gl.bindTexture(gl.TEXTURE_2D, colorSrc);
       gl.uniform1i(loc.color, 1);
       gl.uniform1i(loc.natural, frame.natural ? 1 : 0);
       gl.activeTexture(gl.TEXTURE0);
@@ -1005,6 +1139,10 @@ function createRenderer(gl) {
     dispose() {
       gl.deleteProgram(sceneProg);
       gl.deleteProgram(ditherProg);
+      gl.deleteProgram(waterProg);
+      gl.deleteTexture(waterTex);
+      gl.deleteTexture(waterColorTex);
+      gl.deleteFramebuffer(waterFbo);
       gl.deleteBuffer(vbo);
       gl.deleteVertexArray(vao);
       gl.deleteVertexArray(emptyVao);
@@ -1031,6 +1169,12 @@ var DEFAULTS = Object.freeze({
   // share of butterfly koi with long, flowing fins (0 = none, 0.2 = about 1 in 5, 1 = all)
   still: false,
   // true: fish stay where they are placed and only move their body, tail and fins
+  water: false,
+  // faint light on the water, ripples on click and a slight refraction of the fish
+  waterAmount: 1,
+  // how visible the water is (0.5 = fainter, 2 = stronger)
+  ripples: true,
+  // with water on: a left click or tap on an empty part of the page sends out ripples
   varieties: "all",
   // which koi varieties swim: 'all', or names like ['kohaku', 'showa', 'ogon'] (see VARIETY_NAMES)
   colors: "ink",
@@ -1163,6 +1307,53 @@ function createKoiPond(options = {}) {
   let time = 0;
   let onScreen = true;
   const pointer = { x: 0, y: 0, active: false };
+  const RIPPLE_SPEED = 110;
+  const RIPPLE_LIFE = 2.2;
+  const ripples = [];
+  const rippleBuf = new Float32Array(32);
+  const NO_RIPPLE = 'a,button,input,select,textarea,label,summary,option,[role="button"],[role="link"],[role="tab"],[contenteditable=""],[contenteditable="true"],[data-koi-no-ripple]';
+  function rippleAllowed(el) {
+    if (!el || el.nodeType !== 1) return true;
+    if (el.closest(NO_RIPPLE)) return false;
+    for (const n of el.childNodes) if (n.nodeType === 3 && n.textContent.trim()) return false;
+    return true;
+  }
+  function addRipple(x, y, strength = 1) {
+    ripples.push({ x, y, t0: time, s: strength, hit: /* @__PURE__ */ new Set() });
+    if (ripples.length > 8) ripples.shift();
+  }
+  function stepRipples() {
+    while (ripples.length && time - ripples[0].t0 > RIPPLE_LIFE) ripples.shift();
+    for (const r of ripples) {
+      const radius = (time - r.t0) * RIPPLE_SPEED;
+      for (const f of fishes) {
+        if (r.hit.has(f)) continue;
+        const mid = f.spine.length >> 2 << 1;
+        const dx = f.spine[mid] - r.x;
+        const dy = f.spine[mid + 1] - r.y;
+        const d = Math.hypot(dx, dy);
+        if (d < radius + f.length * 0.3 && d > radius - f.length * 0.8) {
+          r.hit.add(f);
+          startle(f, 0.75 * r.s, Math.atan2(dy, dx));
+        }
+      }
+    }
+  }
+  function waterColor() {
+    return backgroundLightness(bg) > 0.5 ? [0.36, 0.48, 0.6] : [0.62, 0.82, 0.86];
+  }
+  function waterFrame() {
+    if (!opts.water) return null;
+    let n = 0;
+    for (const r of ripples) {
+      rippleBuf[n * 4] = r.x;
+      rippleBuf[n * 4 + 1] = r.y;
+      rippleBuf[n * 4 + 2] = time - r.t0;
+      rippleBuf[n * 4 + 3] = r.s;
+      n++;
+    }
+    return { time, amount: Math.max(0, +opts.waterAmount || 0), ripples: rippleBuf, rippleCount: n, color: waterColor() };
+  }
   function fishSize() {
     const base = opts.fishSize === "auto" ? defaultFishSize(bounds.width, bounds.height) : +opts.fishSize;
     return base * Math.max(0.1, +opts.fishScale || 1);
@@ -1229,7 +1420,8 @@ function createKoiPond(options = {}) {
       bg,
       stops: toneStops(opts.tones),
       natural: opts.colors === "koi",
-      light: backgroundLightness(bg)
+      light: backgroundLightness(bg),
+      water: waterFrame()
     });
   }
   function speedFactor() {
@@ -1251,6 +1443,7 @@ function createKoiPond(options = {}) {
       pointer: opts.interactive ? pointer : null,
       rng
     };
+    if (opts.water) stepRipples();
     if (opts.still) {
       const k = stepOpts.speed;
       for (const f of fishes) {
@@ -1265,6 +1458,16 @@ function createKoiPond(options = {}) {
   }
   function schedule() {
     if (!raf && running && onScreen && !document.hidden) raf = requestAnimationFrame(frame);
+  }
+  function onRippleDown(e) {
+    if (!opts.water || !opts.ripples || e.button !== 0 || destroyed) return;
+    if (!rippleAllowed(e.target)) return;
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    if (x < 0 || y < 0 || x > r.width || y > r.height) return;
+    addRipple(x, y);
+    if (!running) draw();
   }
   function updatePointer(e) {
     const r = canvas.getBoundingClientRect();
@@ -1309,6 +1512,7 @@ function createKoiPond(options = {}) {
   if (ok) {
     window.addEventListener("pointermove", updatePointer, { passive: true });
     window.addEventListener("pointerdown", updatePointer, { passive: true });
+    window.addEventListener("pointerdown", onRippleDown, { passive: true });
     window.addEventListener("pointerup", onPointerUp, { passive: true });
     window.addEventListener("pointercancel", onPointerUp, { passive: true });
     document.addEventListener("pointerout", onPointerOut, { passive: true });
@@ -1345,6 +1549,12 @@ function createKoiPond(options = {}) {
       if (vertices.length < need) vertices = new Float32Array(need * 1.5);
       if (!running) draw();
       return f;
+    },
+    /** Send out a ripple at (x, y) in CSS pixels of the pond (needs water on). */
+    ripple(x, y, strength = 1) {
+      addRipple(x, y, strength);
+      if (!running) draw();
+      return api;
     },
     get fishes() {
       return fishes;
@@ -1397,6 +1607,7 @@ function createKoiPond(options = {}) {
       api.pause();
       window.removeEventListener("pointermove", updatePointer);
       window.removeEventListener("pointerdown", updatePointer);
+      window.removeEventListener("pointerdown", onRippleDown);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
       document.removeEventListener("pointerout", onPointerOut);

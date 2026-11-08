@@ -27,7 +27,7 @@
     <section class="hero">
       <div class="hero-copy">
         <h1><span class="accent">Koi</span> that swim behind your website.</h1>
-        <p class="lede">A small dithering shader that turns any page into a koi pond. Point at a fish and it darts away.</p>
+        <p class="lede">A small dithering shader that turns any page into a koi pond. Point at a fish and it darts away, or click the water.</p>
         <div class="cta">
           <a class="btn primary" href="#install">Add it to your site <svg class="ico" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a>
           <button class="snippet" type="button" aria-label="Copy the script tag"
@@ -45,7 +45,7 @@
         <div class="install-intro">
           <h2>Drop it in</h2>
           <p>One script tag adds the pond behind any page. Your page stays clickable: the canvas only reads where the pointer is.</p>
-          <p class="facts">WebGL2, about 13&nbsp;KB gzipped, no dependencies, MIT licensed.</p>
+          <p class="facts">WebGL2, about 15&nbsp;KB gzipped, no dependencies, MIT licensed.</p>
         </div>
         <div class="install-code">
           <div class="tabs" role="tablist" aria-label="Ways to install">
@@ -133,6 +133,8 @@ pond.destroy();</code></pre>
               <dt><code>mode</code><span>'bayer'</span></dt><dd><code>'bayer'</code> dots or a <code>'lines'</code> screen.</dd>
               <dt><code>tones</code><span>4</span></dt><dd>Shades of ink between paper and full ink.</dd>
               <dt><code>pixelSize</code><span>2</span></dt><dd>Size of one dot in CSS pixels.</dd>
+              <dt><code>water</code><span>false</span></dt><dd>Faint light on the water, and ripples where you click.</dd>
+              <dt><code>waterAmount</code><span>1</span></dt><dd>How visible the water is.</dd>
             </dl>
           </div>
           <div class="opt-group">
@@ -150,6 +152,7 @@ pond.destroy();</code></pre>
             <dl>
               <dt><code>speed</code><span>1</span></dt><dd>Swimming speed multiplier.</dd>
               <dt><code>interactive</code><span>true</span></dt><dd>Startle a fish when the pointer is on it.</dd>
+              <dt><code>ripples</code><span>true</span></dt><dd>With water on, a click on an empty spot sends out ripples. Nearby fish flee them.</dd>
               <dt><code>dartBoost</code><span>1.5</span></dt><dd>Extra speed when startled (up to 2.5&times;).</dd>
               <dt><code>dartDuration</code><span>1</span></dt><dd>Seconds until a startle has faded.</dd>
               <dt><code>reducedMotion</code><span>'auto'</span></dt><dd>Slows the pond for visitors who prefer less motion.</dd>
@@ -171,6 +174,7 @@ pond.destroy();</code></pre>
           <ul>
             <li><code>pond.set({ ... })</code> changes options while it runs.</li>
             <li><code>pond.addFish({ variety: 'kohaku' })</code> adds one koi that swims in from the edge.</li>
+            <li><code>pond.ripple(x, y)</code> sends out a ripple at a point.</li>
             <li><code>pond.pause()</code> and <code>pond.resume()</code></li>
             <li><code>pond.destroy()</code> removes the canvas.</li>
           </ul>
@@ -184,7 +188,7 @@ pond.destroy();</code></pre>
     </div>
   </main>
 
-  <div class="dock" role="group" aria-label="Pond controls">
+  <div class="dock" role="group" aria-label="Pond controls" data-koi-no-ripple>
     <button class="icon" type="button" data-action="pause" aria-label="Pause">
       <svg class="ico" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z"/></svg>
     </button>
@@ -193,6 +197,9 @@ pond.destroy();</code></pre>
     </button>
     <button class="icon" type="button" data-action="fish-only" aria-label="Show only the fish" title="Show only the fish (Esc to exit)">
       <svg class="ico" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M216,48V88a8,8,0,0,1-16,0V56H168a8,8,0,0,1,0-16h40A8,8,0,0,1,216,48ZM88,200H56V168a8,8,0,0,0-16,0v40a8,8,0,0,0,8,8H88a8,8,0,0,0,0-16Zm120-40a8,8,0,0,0-8,8v32H168a8,8,0,0,0,0,16h40a8,8,0,0,0,8-8V168A8,8,0,0,0,208,160ZM88,40H48a8,8,0,0,0-8,8V88a8,8,0,0,0,16,0V56H88a8,8,0,0,0,0-16Z"/></svg>
+    </button>
+    <button class="icon" type="button" data-action="water" aria-pressed="true" aria-label="Water: light and ripples" title="Water: faint light, and ripples where you click">
+      <svg class="ico" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M222.16,177.25a8,8,0,0,1-1,11.25c-17.36,14.39-32.86,19.5-47,19.5-18.58,0-34.82-8.82-49.93-17-25.35-13.76-47.24-25.64-79.07.74a8,8,0,1,1-10.22-12.31c40.17-33.28,70.32-16.92,96.93-2.48,25.35,13.75,47.24,25.63,79.07-.74A8,8,0,0,1,222.16,177.25Zm-11.27-57c-31.83,26.38-53.72,14.5-79.07.74-26.61-14.43-56.76-30.79-96.93,2.49a8,8,0,0,0,10.22,12.31c31.83-26.38,53.72-14.5,79.07-.74,15.11,8.19,31.35,17,49.93,17,14.14,0,29.64-5.11,47-19.5a8,8,0,1,0-10.22-12.31ZM45.11,79.8c31.83-26.37,53.72-14.49,79.07-.74,15.11,8.2,31.35,17,49.93,17,14.14,0,29.64-5.12,47-19.5a8,8,0,1,0-10.22-12.31c-31.83,26.38-53.72,14.5-79.07.74C105.21,50.58,75.06,34.22,34.89,67.5A8,8,0,1,0,45.11,79.8Z"/></svg>
     </button>
     <button class="icon" type="button" data-action="butterfly" aria-pressed="false" aria-label="Butterfly koi (long fins)" title="Butterfly koi: long, flowing fins">
       <svg class="ico" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M232.7,50.48C229,45.7,221.84,40,209,40c-16.85,0-38.46,11.28-57.81,30.16A140.07,140.07,0,0,0,136,87.53V56a8,8,0,0,0-16,0V87.53a140.07,140.07,0,0,0-15.15-17.37C85.49,51.28,63.88,40,47,40,34.16,40,27,45.7,23.3,50.48c-6.82,8.77-12.18,24.08-.21,71.2,6.05,23.83,19.51,33,30.63,36.42A44,44,0,0,0,128,205.27a44,44,0,0,0,74.28-47.17c11.12-3.4,24.57-12.59,30.63-36.42C239.63,95.24,244.85,66.1,232.7,50.48ZM92,208A28.12,28.12,0,0,1,88.86,152a8,8,0,1,0-1.76-15.9A43.64,43.64,0,0,0,66.36,144c-8.43.09-22-3.57-27.76-26.26C35.72,106.39,27,71.86,35.94,60.3,37.37,58.46,40.09,56,47,56c27.27,0,73,44.88,73,71.67V180A28,28,0,0,1,92,208ZM217.4,117.74c-5.77,22.69-19.33,26.34-27.77,26.26a43.6,43.6,0,0,0-20.74-7.95,8,8,0,1,0-1.76,15.9A28.11,28.11,0,1,1,136,180V127.67C136,100.88,181.69,56,209,56c6.95,0,9.66,2.46,11.1,4.3C229.05,71.86,220.28,106.39,217.4,117.74Z"/></svg>
@@ -224,7 +231,7 @@ pond.destroy();</code></pre>
     </label>
   </div>
 
-  <div class="bg-picker" id="bg-picker" role="dialog" aria-label="Background colour" hidden>
+  <div class="bg-picker" id="bg-picker" role="dialog" aria-label="Background colour" data-koi-no-ripple hidden>
     <p class="bg-title">Background</p>
     <div class="swatches">
       <button type="button" class="swatch auto" data-bg="auto" aria-pressed="true" title="Auto: light paper for blue, dark pond for real koi" aria-label="Auto"></button>
@@ -240,7 +247,7 @@ pond.destroy();</code></pre>
     <label class="custom">Custom colour <input type="color" value="#eff5fd" data-bg-custom /></label>
   </div>
 
-  <div class="types-panel" id="types-panel" role="dialog" aria-label="Koi types" hidden>
+  <div class="types-panel" id="types-panel" role="dialog" aria-label="Koi types" data-koi-no-ripple hidden>
     <div class="tp-head">
       <p class="bg-title">Koi types</p>
       <div class="tp-presets">
