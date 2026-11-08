@@ -6,6 +6,7 @@
   --line: rgba(26, 66, 226, 0.14);
   --panel: rgba(239, 245, 253, 0.88);
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --jp: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP", "Noto Serif CJK JP", "Source Han Serif JP", serif;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -141,13 +142,13 @@ h1 em {
   max-width: 920px; margin: 0 auto 72px;
   padding: clamp(24px, 4vw, 44px);
   background: var(--panel);
-  border: 1px solid var(--line); border-radius: 18px;
+  border: 1px solid var(--line);
 }
 h2 { font-size: clamp(26px, 3.4vw, 36px); letter-spacing: -0.02em; margin: 0 0 10px; }
 h3 { font-size: 17px; margin: 0 0 6px; }
 .muted { color: var(--muted); }
 .note {
-  margin: 24px 0 0; padding: 14px 16px; border-radius: 12px;
+  margin: 24px 0 0; padding: 14px 16px;
   background: rgba(26, 66, 226, 0.06); font-size: 14.5px; color: var(--muted);
 }
 .note strong { color: var(--text); }
@@ -164,7 +165,7 @@ h3 { font-size: 17px; margin: 0 0 6px; }
 
 pre {
   position: relative; margin: 0 0 18px; padding: 18px 20px; overflow-x: auto;
-  background: #0b1a4d; color: #dfe8ff; border-radius: 12px;
+  background: #0b1a4d; color: #dfe8ff;
   font-size: 13.5px; line-height: 1.6;
 }
 pre code { font-size: inherit; }
@@ -172,7 +173,7 @@ pre code { font-size: inherit; }
   position: absolute; top: 10px; right: 10px;
   font: 600 12px var(--sans); color: #dfe8ff; cursor: pointer;
   background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18);
-  padding: 5px 10px; border-radius: 8px;
+  padding: 5px 10px;
 }
 .copy:hover { background: rgba(255, 255, 255, 0.18); }
 
@@ -201,14 +202,18 @@ pre code { font-size: inherit; }
   position: relative; /* the koi canvas sits behind the cards */
   list-style: none; margin: 0; padding: 0;
   display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px;
-  border-radius: 14px; overflow: hidden;
+  overflow: hidden;
 }
 .koi-card {
   position: relative; z-index: 1;
-  aspect-ratio: 3 / 4.4; border-radius: 14px;
+  aspect-ratio: 3 / 4.6;
   border: 1px solid var(--line);
   display: flex; flex-direction: column; justify-content: flex-end;
   padding: 10px 12px 12px; text-align: center;
+}
+.koi-card .jp {
+  display: block; margin-bottom: 4px;
+  font: 500 15px/1.2 var(--jp); letter-spacing: 0.12em; color: var(--ink);
 }
 .koi-card h3 { margin: 0; font-size: 14px; letter-spacing: -0.01em; }
 .koi-card p { margin: 2px 0 0; font-size: 12px; line-height: 1.35; color: var(--muted); }
@@ -233,7 +238,7 @@ td:nth-child(2) { white-space: nowrap; color: var(--muted); }
   max-width: 920px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 56px) 140px;
   font-size: 14px; color: var(--muted);
 }
-.foot span, .foot a { background: var(--panel); border-radius: 6px; }
+.foot span, .foot a { background: var(--panel); }
 
 /* ---------- Control dock (bottom centre) ---------- */
 .dock {
@@ -271,7 +276,7 @@ td:nth-child(2) { white-space: nowrap; color: var(--muted); }
 }
 .bg-picker {
   position: fixed; left: 50%; bottom: 82px; transform: translateX(-50%); z-index: 11;
-  padding: 14px; border-radius: 16px; width: max-content; max-width: calc(100vw - 24px);
+  padding: 14px; width: max-content; max-width: calc(100vw - 24px);
   background: #ffffff; color: #0b1a4d;
   border: 1px solid rgba(11, 26, 77, 0.12); box-shadow: 0 12px 40px rgba(11, 26, 77, 0.18);
 }
@@ -290,7 +295,7 @@ td:nth-child(2) { white-space: nowrap; color: var(--muted); }
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   margin-top: 12px; font: 600 13px var(--sans); color: #4b5b8c;
 }
-.custom input { width: 44px; height: 28px; padding: 0; border: 1px solid rgba(11, 26, 77, 0.2); border-radius: 8px; background: none; cursor: pointer; }
+.custom input { width: 44px; height: 28px; padding: 0; border: 1px solid rgba(11, 26, 77, 0.2); background: none; cursor: pointer; }
 @media (max-width: 420px) {
   .swatches { grid-template-columns: repeat(5, 30px); }
 }
@@ -302,7 +307,7 @@ td:nth-child(2) { white-space: nowrap; color: var(--muted); }
 /* ---------- Koi types panel ---------- */
 .types-panel {
   position: fixed; left: 50%; bottom: 82px; transform: translateX(-50%); z-index: 11;
-  width: min(560px, calc(100vw - 24px)); padding: 16px 16px 10px; border-radius: 16px;
+  width: min(560px, calc(100vw - 24px)); padding: 16px 16px 10px;
   background: #ffffff; color: #0b1a4d;
   border: 1px solid rgba(11, 26, 77, 0.12); box-shadow: 0 12px 40px rgba(11, 26, 77, 0.18);
 }
@@ -324,7 +329,7 @@ td:nth-child(2) { white-space: nowrap; color: var(--muted); }
 .tp-list li { display: flex; align-items: center; gap: 6px; }
 .tp-item {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; cursor: pointer;
-  padding: 6px 6px; border-radius: 10px; font-size: 13.5px; font-weight: 500;
+  padding: 6px 6px; font-size: 13.5px; font-weight: 500;
 }
 .tp-item:hover { background: rgba(26, 66, 226, 0.06); }
 .tp-item input { width: 15px; height: 15px; margin: 0; accent-color: #1a42e2; flex: none; }

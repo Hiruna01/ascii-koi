@@ -5,37 +5,37 @@
   const grid = document.getElementById('koi-grid');
   if (!grid || !window.KoiPond) return;
 
-  // [name, description, variety id, pattern seed, long fins]
+  // [name, Japanese name, description, variety id, pattern seed, long fins]
   // Seeds pick a good-looking pattern; for single-colour koi they pick the colour.
   const KOI = [
-    ['Kohaku', 'Red patterns on white, the classic koi', 0, 0.71],
-    ['Taisho Sanke', 'Kohaku with small black spots', 0, 0.78],
-    ['Showa', 'Black body with red and white', 1, 0.44],
-    ['Tancho', 'White with a single red crown', 4, 0.31],
-    ['Shiro Utsuri', 'Black with bold white bands', 5, 0.33],
-    ['Hi Utsuri', 'Black with fiery red bands', 6, 0.47],
-    ['Ki Utsuri', 'Black with yellow bands', 7, 0.29],
-    ['Shiro Bekko', 'White with small black spots', 8, 0.62],
-    ['Ai Goromo', 'Red scales edged in indigo', 9, 0.45],
-    ['Goshiki', 'A dark net over red and white', 10, 0.44],
-    ['Asagi', 'Blue-grey net, red-orange sides', 2, 0.52],
-    ['Shusui', 'Scaleless, a row of big blue scales', 11, 0.5],
-    ['Kumonryu', 'Scaleless black and white swirls', 12, 0.27],
-    ['Ochiba Shigure', 'Grey with bronze, like autumn leaves', 13, 0.83],
-    ['Kujaku', 'Metallic white, dark net, orange', 14, 0.15],
-    ['Hariwake', 'Metallic platinum with gold', 15, 0.66],
-    ['Yamabuki Ogon', 'Metallic gold all over', 3, 0.01],
-    ['Platinum Ogon', 'Metallic white all over', 3, 0.025],
-    ['Orenji Ogon', 'Metallic orange all over', 3, 0.035],
-    ['Kigoi', 'Lemon yellow, no shine', 3, 0.048],
-    ['Chagoi', 'Tea brown, the friendliest koi', 3, 0.058],
-    ['Benigoi', 'Deep red all over', 3, 0.068],
-    ['Soragoi', 'Plain sky grey', 16, 0.2],
-    ['Butterfly koi', 'Long, flowing fins and tail', 0, 0.71, true],
+    ['Kohaku', '紅白', 'Red patterns on white, the classic koi', 0, 0.71],
+    ['Taisho Sanke', '大正三色', 'Kohaku with small black spots', 0, 0.78],
+    ['Showa', '昭和三色', 'Black body with red and white', 1, 0.44],
+    ['Tancho', '丹頂', 'White with a single red crown', 4, 0.31],
+    ['Shiro Utsuri', '白写り', 'Black with bold white bands', 5, 0.33],
+    ['Hi Utsuri', '緋写り', 'Black with fiery red bands', 6, 0.47],
+    ['Ki Utsuri', '黄写り', 'Black with yellow bands', 7, 0.29],
+    ['Shiro Bekko', '白鼈甲', 'White with small black spots', 8, 0.62],
+    ['Ai Goromo', '藍衣', 'Red scales edged in indigo', 9, 0.45],
+    ['Goshiki', '五色', 'A dark net over red and white', 10, 0.44],
+    ['Asagi', '浅黄', 'Blue-grey net, red-orange sides', 2, 0.52],
+    ['Shusui', '秋翠', 'Scaleless, a row of big blue scales', 11, 0.5],
+    ['Kumonryu', '九紋竜', 'Scaleless black and white swirls', 12, 0.27],
+    ['Ochiba Shigure', '落葉時雨', 'Grey with bronze, like autumn leaves', 13, 0.83],
+    ['Kujaku', '孔雀', 'Metallic white, dark net, orange', 14, 0.15],
+    ['Hariwake', '張分け', 'Metallic platinum with gold', 15, 0.66],
+    ['Yamabuki Ogon', '山吹黄金', 'Metallic gold all over', 3, 0.01],
+    ['Platinum Ogon', 'プラチナ黄金', 'Metallic white all over', 3, 0.025],
+    ['Orenji Ogon', 'オレンジ黄金', 'Metallic orange all over', 3, 0.035],
+    ['Kigoi', '黄鯉', 'Lemon yellow, no shine', 3, 0.048],
+    ['Chagoi', '茶鯉', 'Tea brown, the friendliest koi', 3, 0.058],
+    ['Benigoi', '紅鯉', 'Deep red all over', 3, 0.068],
+    ['Soragoi', '空鯉', 'Plain sky grey', 16, 0.2],
+    ['Butterfly koi', '鰭長錦鯉', 'Long, flowing fins and tail', 0, 0.71, true],
   ];
 
-  grid.innerHTML = KOI.map(([name, desc]) =>
-    `<li class="koi-card"><h3>${name}</h3><p>${desc}</p></li>`).join('');
+  grid.innerHTML = KOI.map(([name, jp, desc]) =>
+    `<li class="koi-card"><span class="jp" lang="ja">${jp}</span><h3>${name}</h3><p>${desc}</p></li>`).join('');
   const cards = [...grid.children];
 
   const pageBg = () =>
@@ -46,7 +46,7 @@
     count: KOI.length,
     still: true,
     interactive: false,
-    colors: 'koi',
+    colors: 'ink',
     background: pageBg(),
     pixelSize: 1.5,
     seed: 11,
@@ -57,9 +57,9 @@
   function layout() {
     const g = grid.getBoundingClientRect();
     gallery.fishes.forEach((f, i) => {
-      const [, , variety, seed, long] = KOI[i];
+      const [, , , variety, seed, long] = KOI[i];
       const c = cards[i].getBoundingClientRect();
-      const label = cards[i].querySelector('h3').getBoundingClientRect();
+      const label = cards[i].querySelector('.jp').getBoundingClientRect();
       const top = c.top - g.top + 14;
       const room = label.top - c.top - 22; // height available above the label
       const L = Math.max(20, Math.min(room / (long ? 1.62 : 1.36), c.width * 0.95));
