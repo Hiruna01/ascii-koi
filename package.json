@@ -1,0 +1,33 @@
+{
+  "name": "koi-pond",
+  "version": "0.1.0",
+  "description": "A dithered koi pond shader (WebGL2) you can drop into any website background.",
+  "type": "module",
+  "main": "dist/koi-pond.esm.js",
+  "module": "dist/koi-pond.esm.js",
+  "exports": {
+    ".": "./dist/koi-pond.esm.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "node scripts/build.js",
+    "dev": "node scripts/build.js --serve",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "koi",
+    "dither",
+    "bayer",
+    "shader",
+    "webgl",
+    "background",
+    "canvas"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  }
+}

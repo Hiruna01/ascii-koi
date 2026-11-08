@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Koi Pond: a dithered koi shader for website backgrounds</title>
+  <meta name="description" content="A tiny WebGL2 shader that turns your page background into a dithered koi pond. Hover a fish and it darts away. One script tag, any website." />
+  <meta name="theme-color" content="#eff5fd" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='%231a42e2'%3E%3Crect x='3' y='6' width='2' height='2'/%3E%3Crect x='5' y='5' width='2' height='2'/%3E%3Crect x='7' y='5' width='2' height='2'/%3E%3Crect x='9' y='6' width='2' height='2'/%3E%3Crect x='5' y='7' width='2' height='2'/%3E%3Crect x='7' y='7' width='2' height='2'/%3E%3Crect x='11' y='4' width='2' height='2'/%3E%3Crect x='11' y='8' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="#top" aria-label="Koi Pond home">
+      <span class="brand-mark" aria-hidden="true"></span>koi&middot;pond
+    </a>
+    <nav>
+      <a href="#install">Install</a>
+      <a href="#how">How it works</a>
+      <a href="#options">Options</a>
+      <a href="https://github.com/Hiruna01/ascii-koi">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <p class="eyebrow">WebGL2 dither shader &middot; 8 KB gzipped &middot; no dependencies</p>
+      <h1>A koi pond for your website background.</h1>
+      <p class="lede">
+        Koi made of ordered-dither dots swim quietly behind your content.
+        Point at a fish and it darts away. Add it to any site with one script tag.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="#install">Add it to your site</a>
+        <a class="btn" href="koi-pond.min.js" download>Download koi-pond.min.js</a>
+      </div>
+      <p class="hint"><span class="cursor" aria-hidden="true"></span>Try it: put your pointer on a fish.</p>
+    </section>
+
+    <section id="install" class="panel">
+      <h2>Drop it in</h2>
+      <p class="muted">Pick whichever fits your site. Your page stays clickable: the pond sits behind everything and only reads where the pointer is.</p>
+
+      <div class="tabs" role="tablist" aria-label="Ways to install">
+        <button role="tab" aria-selected="true" aria-controls="tab-script" id="t-script">Script tag</button>
+        <button role="tab" aria-selected="false" aria-controls="tab-module" id="t-module">JS module</button>
+        <button role="tab" aria-selected="false" aria-controls="tab-section" id="t-section">One section only</button>
+      </div>
+
+      <div class="tabpanel" id="tab-script" role="tabpanel" aria-labelledby="t-script">
+        <p>Add this before <code>&lt;/body&gt;</code>. That's it.</p>
+        <pre><button class="copy" type="button">Copy</button><code>&lt;script src="koi-pond.min.js" data-koi-pond&gt;&lt;/script&gt;</code></pre>
+        <p>Options go in <code>data-</code> attributes:</p>
+        <pre><button class="copy" type="button">Copy</button><code>&lt;script src="koi-pond.min.js" data-koi-pond
+        data-mode="lines" data-count="14" data-pixel-size="2"&gt;&lt;/script&gt;</code></pre>
+      </div>
+
+      <div class="tabpanel" id="tab-module" role="tabpanel" aria-labelledby="t-module" hidden>
+        <p>Import it from <code>dist/koi-pond.esm.js</code>, or from your bundler once installed.</p>
+        <pre><button class="copy" type="button">Copy</button><code>import { createKoiPond } from './koi-pond.esm.js';
+
+const pond = createKoiPond({
+  ink: '#1a42e2',
+  background: '#eff5fd',
+  mode: 'bayer',
+});
+
+// later
+pond.set({ mode: 'lines', count: 14 });
+pond.destroy();</code></pre>
+      </div>
+
+      <div class="tabpanel" id="tab-section" role="tabpanel" aria-labelledby="t-section" hidden>
+        <p>Give it a <code>target</code> and the pond fills just that element (for example a hero) instead of the whole page.</p>
+        <pre><button class="copy" type="button">Copy</button><code>&lt;section id="hero"&gt;…&lt;/section&gt;
+
+&lt;script src="koi-pond.min.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  KoiPond.create({ target: '#hero', count: 6 });
+&lt;/script&gt;</code></pre>
+      </div>
+
+      <p class="note"><strong>Using it as a full-page background?</strong> The canvas sits at <code>z-index: -1</code>. If your <code>body</code> has its own background colour, move that colour to <code>html</code> (or remove it) so the pond can show through.</p>
+    </section>
+
+    <section id="how" class="panel">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li>
+          <span class="step-n">01</span>
+          <h3>Swim</h3>
+          <p>Each koi is a chain of points. The head wanders and every point follows the one in front, so turns bend the whole body. A travelling wave adds the tail beat.</p>
+        </li>
+        <li>
+          <span class="step-n">02</span>
+          <h3>Shade</h3>
+          <p>The fish are drawn into a tiny offscreen image as shades of grey, one pixel per dot. Bodies are dark, white patches and fins are light, edges are soft.</p>
+        </li>
+        <li>
+          <span class="step-n">03</span>
+          <h3>Dither</h3>
+          <p>A shader compares each grey value with an 8&times;8 Bayer matrix. Darker than the threshold means a blue dot. Light greys become sparse dots, which gives fins their feathery look.</p>
+          <div class="bayer" aria-hidden="true"></div>
+        </li>
+      </ol>
+      <p class="muted">The only interaction: when your pointer is on a fish, that fish gets a burst of speed with a quick flick to one side, then calms down again.</p>
+    </section>
+
+    <section id="options" class="panel">
+      <h2>Options</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Option</th><th>Default</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>target</code></td><td><code>document.body</code></td><td>Element or selector to fill. The body gives a fixed full-page background.</td></tr>
+            <tr><td><code>canvas</code></td><td><code>null</code></td><td>Use your own <code>&lt;canvas&gt;</code> instead (sized by your CSS).</td></tr>
+            <tr><td><code>count</code></td><td><code>10</code></td><td>Number of koi.</td></tr>
+            <tr><td><code>fishSize</code></td><td><code>'auto'</code></td><td>Body length in CSS pixels. Auto scales with the viewport.</td></tr>
+            <tr><td><code>ink</code></td><td><code>'#1a42e2'</code></td><td>Dot colour (hex or <code>rgb()</code>).</td></tr>
+            <tr><td><code>background</code></td><td><code>'#eff5fd'</code></td><td>Paper colour, or <code>'transparent'</code> to show your page behind the dots.</td></tr>
+            <tr><td><code>mode</code></td><td><code>'bayer'</code></td><td><code>'bayer'</code> dots or <code>'lines'</code> line screen.</td></tr>
+            <tr><td><code>pixelSize</code></td><td><code>1.5</code></td><td>Size of one dot in CSS pixels.</td></tr>
+            <tr><td><code>speed</code></td><td><code>1</code></td><td>Swimming speed multiplier.</td></tr>
+            <tr><td><code>dartBoost</code></td><td><code>3.5</code></td><td>Extra speed when a fish darts (3.5 means 4.5&times; normal).</td></tr>
+            <tr><td><code>dartDuration</code></td><td><code>1.2</code></td><td>Seconds until a dart has mostly faded.</td></tr>
+            <tr><td><code>interactive</code></td><td><code>true</code></td><td>Turn the pointer reaction off.</td></tr>
+            <tr><td><code>reducedMotion</code></td><td><code>'auto'</code></td><td>Slows the pond down for visitors who prefer reduced motion.</td></tr>
+            <tr><td><code>maxDpr</code></td><td><code>2</code></td><td>Upper limit for device pixel ratio.</td></tr>
+            <tr><td><code>zIndex</code></td><td><code>-1</code></td><td>z-index of the full-page canvas.</td></tr>
+            <tr><td><code>seed</code></td><td><code>null</code></td><td>A number gives the same pond every time.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3 class="api-h">Methods</h3>
+      <ul class="api">
+        <li><code>pond.set({ … })</code> change any option while it runs</li>
+        <li><code>pond.pause()</code> / <code>pond.resume()</code></li>
+        <li><code>pond.destroy()</code> stop and remove the canvas</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>koi&middot;pond, MIT licensed.</span>
+    <a href="https://github.com/Hiruna01/ascii-koi">Source on GitHub</a>
+  </footer>
+
+  <div class="dock" role="group" aria-label="Pond controls">
+    <button class="icon" type="button" data-action="pause" aria-label="Pause">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="3" width="3" height="10"/><rect x="9" y="3" width="3" height="10"/></svg>
+    </button>
+    <button class="icon" type="button" data-action="reset" aria-label="New pond">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5V5h-2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <span class="sep" aria-hidden="true"></span>
+    <div class="seg" role="radiogroup" aria-label="Dither mode">
+      <button type="button" role="radio" aria-checked="true" data-mode="bayer">Bayer</button>
+      <button type="button" role="radio" aria-checked="false" data-mode="lines">Lines</button>
+    </div>
+    <span class="sep" aria-hidden="true"></span>
+    <label class="range">Dots
+      <input type="range" min="1" max="4" step="0.5" value="1.5" data-opt="pixelSize" />
+    </label>
+    <label class="range">Koi
+      <input type="range" min="1" max="24" step="1" value="10" data-opt="count" />
+    </label>
+  </div>
+
+  <script src="koi-pond.min.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
