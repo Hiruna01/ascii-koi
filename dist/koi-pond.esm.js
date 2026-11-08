@@ -69,6 +69,7 @@ function defaultFishSize(width, height) {
 }
 function createFish(rng, bounds, size) {
   const length = size * (0.8 + rng() * 0.38);
+  const baseSpeed = length * (0.3 + rng() * 0.2);
   const segLen = length / SPINE_SEGMENTS;
   const margin = Math.min(length, Math.min(bounds.width, bounds.height) * 0.25);
   const x = margin + rng() * Math.max(1, bounds.width - 2 * margin);
@@ -91,16 +92,32 @@ function createFish(rng, bounds, size) {
     segLen,
     angle,
     turn: 0,
-    baseSpeed: length * (0.32 + rng() * 0.22),
-    // body lengths per second
-    speed: 0,
+    // current turning rate (rad/s)
+    baseSpeed,
+    // cruising speed (px/s)
+    speed: baseSpeed * (0.6 + rng() * 0.4),
     burst: 0,
     // 0..1, dart intensity
     flick: 0,
     // short turn impulse when startled (rad/s)
     phase: rng() * TAU,
     // tail-beat phase
-    wander: rng() * 1e3,
+    amp: 0.8,
+    // tail-beat amplitude, 0 = gliding straight, ~1 = cruising, >1 = bursting
+    beating: true,
+    // burst-and-glide: currently beating the tail (true) or gliding
+    glideTo: 0.75,
+    // glide until speed drops to this fraction of the target speed
+    heading: angle,
+    // the heading the fish has decided to swim towards
+    decide: 1 + rng() * 3,
+    // seconds until the next decision
+    rest: 0,
+    // seconds left of slow hovering
+    finPhase: rng() * TAU,
+    // slow sculling of the side fins
+    rand: mulberry32(rng() * 4294967296 >>> 0),
+    // per-fish randomness
     seed: rng(),
     depth: rng() < 0.3 ? 0.45 + rng() * 0.4 : rng() * 0.25,
     // deeper fish are paler
@@ -136,15 +153,33 @@ function stepFish(fish, dt, time, opts) {
   const s = fish.spine;
   const hx = s[0];
   const hy = s[1];
-  const w = fish.wander;
-  let turn = 0.7 * Math.sin(time * 0.31 + w) + 0.45 * Math.sin(time * 0.73 + w * 1.7) + 0.25 * Math.sin(time * 1.37 + w * 2.3);
-  const margin = Math.max(fish.length * 1.1, 60);
+  const L = fish.length;
+  const rand = fish.rand;
+  fish.decide -= dt;
+  if (fish.rest > 0) fish.rest -= dt;
+  if (fish.decide <= 0) {
+    const r = rand();
+    if (r < 0.12 && fish.rest <= 0) {
+      fish.rest = 2 + rand() * 3;
+      fish.decide = fish.rest + 0.5;
+    } else {
+      const big = r > 0.8;
+      fish.heading = fish.angle + (rand() - 0.5) * (big ? 3.2 : 1.3);
+      fish.decide = 2 + rand() * 4;
+    }
+  }
+  let want = angleDiff(fish.heading, fish.angle);
+  const margin = Math.max(L * 1.2, 70);
   const ex = smoothstep(margin, 0, hx) - smoothstep(bounds.width - margin, bounds.width, hx);
   const ey = smoothstep(margin, 0, hy) - smoothstep(bounds.height - margin, bounds.height, hy);
   const edge = Math.min(1, Math.hypot(ex, ey));
   if (edge > 0) {
     const toCentre = Math.atan2(bounds.height / 2 - hy, bounds.width / 2 - hx);
-    turn = turn * (1 - edge) + angleDiff(toCentre, fish.angle) * 3.2 * edge;
+    want = want * (1 - edge) + angleDiff(toCentre, fish.angle) * edge;
+    if (edge > 0.5) {
+      fish.heading = toCentre;
+      fish.rest = 0;
+    }
   }
   if (fishes) {
     for (const o2 of fishes) {
@@ -152,30 +187,54 @@ function stepFish(fish, dt, time, opts) {
       const dx = hx - o2.spine[(SPINE_SEGMENTS >> 1) * 2];
       const dy = hy - o2.spine[(SPINE_SEGMENTS >> 1) * 2 + 1];
       const d2 = dx * dx + dy * dy;
-      const r = (fish.length + o2.length) * 0.4;
+      const r = (L + o2.length) * 0.4;
       if (d2 < r * r && d2 > 1e-6) {
-        const away = Math.atan2(dy, dx);
         const k = 1 - Math.sqrt(d2) / r;
-        turn += angleDiff(away, fish.angle) * 0.9 * k;
+        want += angleDiff(Math.atan2(dy, dx), fish.angle) * 0.8 * k;
       }
     }
   }
   if (pointer && pointer.active && hitTest(fish, pointer.x, pointer.y)) {
     if (fish.burst < 0.35) {
-      fish.flick = (opts.rng() < 0.5 ? -1 : 1) * (1.6 + opts.rng() * 1.4);
+      const side = rand() < 0.5 ? -1 : 1;
+      fish.flick = side * (3.5 + rand() * 2);
+      fish.heading = fish.angle + side * (0.9 + rand() * 0.9);
+      fish.amp = Math.max(fish.amp, 1.3);
+      fish.rest = 0;
     }
     fish.burst = 1;
   }
-  const decay = Math.exp(-dt / Math.max(0.05, opts.dartDuration * 0.45));
-  fish.burst *= decay;
-  fish.flick *= Math.exp(-dt / 0.18);
-  fish.turn += (turn - fish.turn) * Math.min(1, dt * 3);
+  fish.burst *= Math.exp(-dt / Math.max(0.05, opts.dartDuration * 0.45));
+  fish.flick *= Math.exp(-dt / 0.12);
+  const speedRatio = fish.speed / L;
+  const maxTurn = (0.35 + 1.5 * Math.min(1, speedRatio / 0.6)) * (1 + edge);
+  const turnTarget = clamp(want * 1.4, -maxTurn, maxTurn);
+  fish.turn += (turnTarget - fish.turn) * (1 - Math.exp(-dt * 2.5));
   fish.angle += (fish.turn + fish.flick) * dt;
-  const targetSpeed = fish.baseSpeed * (1 + opts.dartBoost * fish.burst) * opts.speed;
-  fish.speed += (targetSpeed - fish.speed) * Math.min(1, dt * (fish.burst > 0.1 ? 10 : 2));
-  fish.phase += dt * TAU * (0.7 + 1.5 * (fish.speed / fish.length)) * Math.max(0.15, opts.speed);
-  s[0] = hx + Math.cos(fish.angle) * fish.speed * dt;
-  s[1] = hy + Math.sin(fish.angle) * fish.speed * dt;
+  const cruise = fish.baseSpeed * opts.speed;
+  const target = fish.burst > 0.02 ? cruise * (1 + opts.dartBoost * fish.burst) : fish.rest > 0 ? cruise * 0.22 : cruise;
+  if (fish.burst > 0.05 || Math.abs(want) > 0.9) {
+    fish.beating = true;
+  } else if (fish.beating && fish.speed > target * 1.15) {
+    fish.beating = false;
+    fish.glideTo = 0.62 + rand() * 0.22;
+  } else if (!fish.beating && fish.speed < target * fish.glideTo) {
+    fish.beating = true;
+  }
+  const ampTarget = fish.beating ? 0.85 + 0.5 * fish.burst : fish.rest > 0 ? 0.05 : 0.1;
+  fish.amp += (ampTarget - fish.amp) * (1 - Math.exp(-dt * (fish.burst > 0.1 ? 10 : 4)));
+  if (fish.beating) {
+    const k = 1.3 * fish.amp * (1 + 4 * fish.burst);
+    fish.speed += (target * 1.3 - fish.speed) * (1 - Math.exp(-dt * k));
+  } else {
+    fish.speed *= Math.exp(-dt / 2.1);
+  }
+  const hz = (0.8 + 2.4 * (fish.speed / L)) * (1 + 0.6 * fish.burst);
+  fish.phase += TAU * hz * dt * (0.3 + 0.7 * Math.min(1, fish.amp)) * Math.max(0.2, Math.min(1, opts.speed * 2));
+  fish.finPhase += TAU * 0.9 * dt;
+  const v = fish.speed * (1 + 0.06 * Math.min(1, fish.amp) * Math.sin(2 * fish.phase));
+  s[0] = hx + Math.cos(fish.angle) * v * dt;
+  s[1] = hy + Math.sin(fish.angle) * v * dt;
   for (let i = 1; i <= SPINE_SEGMENTS; i++) {
     const dx = s[i * 2] - s[i * 2 - 2];
     const dy = s[i * 2 + 1] - s[i * 2 - 1];
@@ -183,7 +242,7 @@ function stepFish(fish, dt, time, opts) {
     s[i * 2] = s[i * 2 - 2] + dx / d * fish.segLen;
     s[i * 2 + 1] = s[i * 2 - 1] + dy / d * fish.segLen;
   }
-  const far = fish.length * 3;
+  const far = L * 3;
   if (s[0] < -far || s[0] > bounds.width + far || s[1] < -far || s[1] > bounds.height + far) {
     const cx = clamp(s[0], 0, bounds.width);
     const cy = clamp(s[1], 0, bounds.height);
@@ -239,7 +298,12 @@ function quad(alx, aly, arx, ary, blx, bly, brx, bry, ua, ub, kind, f) {
   vert(brx, bry, ub, 1, kind, f);
   vert(blx, bly, ub, -1, kind, f);
 }
-function pairedFins(f, i, len, halfW, sweepBase, flapAmp, flapOffset) {
+var WAVE_K = 4.65;
+function waveOffset(f, u, lag = 0) {
+  const envelope = 0.012 + 0.022 * u + 0.05 * u * u;
+  return f.length * f.amp * envelope * Math.sin(f.phase - WAVE_K * u - lag);
+}
+function pairedFins(f, i, len, halfW, spread, tucked, scull, phaseOffset) {
   const L = f.length;
   let tx = px[i - 1] - px[i + 1];
   let ty = py[i - 1] - py[i + 1];
@@ -247,8 +311,9 @@ function pairedFins(f, i, len, halfW, sweepBase, flapAmp, flapOffset) {
   tx /= tl;
   ty /= tl;
   const hw = bodyHalfWidth(i / SPINE_SEGMENTS) * L;
+  const fold = clamp(f.speed / (L * 0.8), 0, 1);
   for (const side of [-1, 1]) {
-    const sweep = sweepBase + 0.45 * f.burst + flapAmp * Math.sin(f.phase * 0.55 + side * 1.3 + flapOffset);
+    const sweep = spread + (tucked - spread) * fold + scull * (1 - fold) * Math.sin(f.finPhase + side * 1.3 + phaseOffset) + 0.35 * clamp(f.turn * side * 0.8, 0, 1);
     const dx = -tx * Math.cos(sweep) + -ty * side * Math.sin(sweep);
     const dy = -ty * Math.cos(sweep) + tx * side * Math.sin(sweep);
     const rx = px[i] + -ty * side * hw * 0.62;
@@ -273,10 +338,11 @@ function pairedFins(f, i, len, halfW, sweepBase, flapAmp, flapOffset) {
     );
   }
 }
+var tcx = new Float32Array(TAIL_ROWS);
+var tcy = new Float32Array(TAIL_ROWS);
 function writeFish(f) {
   const s = f.spine;
   const L = f.length;
-  const amp = L * 0.045 * (1 + 0.6 * f.burst);
   for (let i = 0; i <= SPINE_SEGMENTS; i++) {
     const a = Math.max(0, i - 1);
     const b = Math.min(SPINE_SEGMENTS, i + 1);
@@ -287,34 +353,43 @@ function writeFish(f) {
     ty /= tl;
     nx[i] = -ty;
     ny[i] = tx;
-    const u = i / SPINE_SEGMENTS;
-    const off = Math.sin(f.phase - u * 4.6) * amp * (0.1 + Math.pow(u, 1.6));
+    const off = waveOffset(f, i / SPINE_SEGMENTS);
     px[i] = s[i * 2] + nx[i] * off;
     py[i] = s[i * 2 + 1] + ny[i] * off;
   }
-  const pect = Math.round(SPINE_SEGMENTS * 0.2);
-  const pelv = Math.round(SPINE_SEGMENTS * 0.56);
-  pairedFins(f, pect, L * 0.21, L * 0.09, 0.62, 0.22, 0);
-  pairedFins(f, pelv, L * 0.12, L * 0.048, 0.5, 0.14, 2.1);
+  pairedFins(f, Math.round(SPINE_SEGMENTS * 0.2), L * 0.21, L * 0.09, 1.2, 0.32, 0.3, 0);
+  pairedFins(f, Math.round(SPINE_SEGMENTS * 0.56), L * 0.12, L * 0.048, 0.85, 0.38, 0.18, 2.1);
   {
     const e = SPINE_SEGMENTS;
-    const base = Math.atan2(py[e] - py[e - 1], px[e] - px[e - 1]);
+    let dx = s[e * 2] - s[e * 2 - 2];
+    let dy = s[e * 2 + 1] - s[e * 2 - 1];
+    const dl = Math.hypot(dx, dy) || 1;
+    dx /= dl;
+    dy /= dl;
     const tailLen = L * 0.33;
-    const step = tailLen / (TAIL_ROWS - 1);
-    let prev = null;
-    let cx = px[e];
-    let cy = py[e];
     for (let j = 0; j < TAIL_ROWS; j++) {
       const t = j / (TAIL_ROWS - 1);
-      const ang = base + Math.sin(f.phase - 5.2 - t * 1.4) * 0.5 * t;
-      if (j > 0) {
-        cx += Math.cos(ang) * step;
-        cy += Math.sin(ang) * step;
-      }
+      const along = t * tailLen;
+      const off = waveOffset(f, 1 + along / L, 0.55 * t);
+      tcx[j] = s[e * 2] + dx * along + nx[e] * off;
+      tcy[j] = s[e * 2 + 1] + dy * along + ny[e] * off;
+    }
+    let prev = null;
+    for (let j = 0; j < TAIL_ROWS; j++) {
+      const t = j / (TAIL_ROWS - 1);
+      const a = Math.max(0, j - 1);
+      const b = Math.min(TAIL_ROWS - 1, j + 1);
+      const ang = Math.atan2(tcy[b] - tcy[a], tcx[b] - tcx[a]);
       const hw = L * (0.03 + 0.19 * Math.pow(t, 0.85));
       const qx = -Math.sin(ang);
       const qy = Math.cos(ang);
-      const row = { lx: cx - qx * hw, ly: cy - qy * hw, rx: cx + qx * hw, ry: cy + qy * hw, t };
+      const row = {
+        lx: tcx[j] - qx * hw,
+        ly: tcy[j] - qy * hw,
+        rx: tcx[j] + qx * hw,
+        ry: tcy[j] + qy * hw,
+        t
+      };
       if (prev) quad(prev.lx, prev.ly, prev.rx, prev.ry, row.lx, row.ly, row.rx, row.ry, prev.t, row.t, 1, f);
       prev = row;
     }

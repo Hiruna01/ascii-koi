@@ -1,9 +1,18 @@
 // Koi simulation: pure math, no DOM / WebGL, so it can be unit-tested in Node.
 //
-// Each koi is a "rope" of spine points. The head steers with a gentle wander,
-// every following point is pulled to a fixed distance behind the one in front.
-// That alone gives natural S-curves when the fish turns. A travelling sine wave
-// is added on top at render time for the tail beat.
+// Each koi is a "rope" of spine points. The head steers, every following point
+// is pulled to a fixed distance behind the one in front, so turns bend the whole
+// body. On top of that, swimming follows how real carp-like fish move:
+//
+// - Burst and glide: a few tail beats to speed up, then a coast with the body
+//   almost straight while water drag slows the fish, then beats again.
+// - Thrust comes from a body wave that travels from head to tail, growing in
+//   amplitude towards the tail (applied at render time, see geometry.js). Tail
+//   beat frequency rises with speed.
+// - Behaviour: mostly straight runs with deliberate turns to a new heading,
+//   occasional slow hovering. Slow fish turn slowly; fast fish turn more easily.
+// - Startle (pointer on the fish): a sharp C-bend to one side, then a burst of
+//   strong, fast tail beats, then a long glide back to calm.
 //
 // The only pointer interaction: when the pointer is over a fish's body, that
 // fish darts (a short burst of speed that fades out). Nothing else.
@@ -103,6 +112,7 @@ export function defaultFishSize(width, height) {
 
 export function createFish(rng, bounds, size) {
   const length = size * (0.8 + rng() * 0.38);
+  const baseSpeed = length * (0.3 + rng() * 0.2); // body lengths per second
   const segLen = length / SPINE_SEGMENTS;
   const margin = Math.min(length, Math.min(bounds.width, bounds.height) * 0.25);
   const x = margin + rng() * Math.max(1, bounds.width - 2 * margin);
@@ -126,13 +136,20 @@ export function createFish(rng, bounds, size) {
     length,
     segLen,
     angle,
-    turn: 0,
-    baseSpeed: length * (0.32 + rng() * 0.22), // body lengths per second
-    speed: 0,
+    turn: 0, // current turning rate (rad/s)
+    baseSpeed, // cruising speed (px/s)
+    speed: baseSpeed * (0.6 + rng() * 0.4),
     burst: 0, // 0..1, dart intensity
     flick: 0, // short turn impulse when startled (rad/s)
     phase: rng() * TAU, // tail-beat phase
-    wander: rng() * 1000,
+    amp: 0.8, // tail-beat amplitude, 0 = gliding straight, ~1 = cruising, >1 = bursting
+    beating: true, // burst-and-glide: currently beating the tail (true) or gliding
+    glideTo: 0.75, // glide until speed drops to this fraction of the target speed
+    heading: angle, // the heading the fish has decided to swim towards
+    decide: 1 + rng() * 3, // seconds until the next decision
+    rest: 0, // seconds left of slow hovering
+    finPhase: rng() * TAU, // slow sculling of the side fins
+    rand: mulberry32((rng() * 4294967296) >>> 0), // per-fish randomness
     seed: rng(),
     depth: rng() < 0.3 ? 0.45 + rng() * 0.4 : rng() * 0.25, // deeper fish are paler
     variety,
@@ -169,31 +186,45 @@ export function hitTest(fish, px, py, pad = 6) {
 
 /**
  * Advance one fish by dt seconds.
- * opts: { speed, dartBoost, dartDuration, bounds:{width,height}, fishes, pointer:{x,y,active}, rng }
+ * opts: { speed, dartBoost, dartDuration, bounds:{width,height}, fishes, pointer:{x,y,active} }
  */
 export function stepFish(fish, dt, time, opts) {
   const { bounds, fishes, pointer } = opts;
   const s = fish.spine;
   const hx = s[0];
   const hy = s[1];
+  const L = fish.length;
+  const rand = fish.rand;
 
-  // --- Wander: smooth pseudo-random turning from a sum of sines.
-  const w = fish.wander;
-  let turn =
-    0.7 * Math.sin(time * 0.31 + w) +
-    0.45 * Math.sin(time * 0.73 + w * 1.7) +
-    0.25 * Math.sin(time * 1.37 + w * 2.3);
+  // --- Decisions: hold a heading for a while, then pick a new one. Sometimes hover.
+  fish.decide -= dt;
+  if (fish.rest > 0) fish.rest -= dt;
+  if (fish.decide <= 0) {
+    const r = rand();
+    if (r < 0.12 && fish.rest <= 0) {
+      fish.rest = 2 + rand() * 3; // slow down and hover for a few seconds
+      fish.decide = fish.rest + 0.5;
+    } else {
+      // Mostly gentle course changes, sometimes a bigger turn.
+      const big = r > 0.8;
+      fish.heading = fish.angle + (rand() - 0.5) * (big ? 3.2 : 1.3);
+      fish.decide = 2 + rand() * 4;
+    }
+  }
+  let want = angleDiff(fish.heading, fish.angle);
 
-  // --- Stay inside the bounds: steer towards the centre near the edges.
-  const margin = Math.max(fish.length * 1.1, 60);
-  const ex =
-    smoothstep(margin, 0, hx) - smoothstep(bounds.width - margin, bounds.width, hx);
-  const ey =
-    smoothstep(margin, 0, hy) - smoothstep(bounds.height - margin, bounds.height, hy);
+  // --- Stay inside the bounds: near an edge, head back towards the middle.
+  const margin = Math.max(L * 1.2, 70);
+  const ex = smoothstep(margin, 0, hx) - smoothstep(bounds.width - margin, bounds.width, hx);
+  const ey = smoothstep(margin, 0, hy) - smoothstep(bounds.height - margin, bounds.height, hy);
   const edge = Math.min(1, Math.hypot(ex, ey));
   if (edge > 0) {
     const toCentre = Math.atan2(bounds.height / 2 - hy, bounds.width / 2 - hx);
-    turn = turn * (1 - edge) + angleDiff(toCentre, fish.angle) * 3.2 * edge;
+    want = want * (1 - edge) + angleDiff(toCentre, fish.angle) * edge;
+    if (edge > 0.5) {
+      fish.heading = toCentre;
+      fish.rest = 0;
+    }
   }
 
   // --- Mild separation so fish don't swim through each other too often.
@@ -203,40 +234,71 @@ export function stepFish(fish, dt, time, opts) {
       const dx = hx - o.spine[(SPINE_SEGMENTS >> 1) * 2];
       const dy = hy - o.spine[(SPINE_SEGMENTS >> 1) * 2 + 1];
       const d2 = dx * dx + dy * dy;
-      const r = (fish.length + o.length) * 0.4;
+      const r = (L + o.length) * 0.4;
       if (d2 < r * r && d2 > 1e-6) {
-        const away = Math.atan2(dy, dx);
         const k = 1 - Math.sqrt(d2) / r;
-        turn += angleDiff(away, fish.angle) * 0.9 * k;
+        want += angleDiff(Math.atan2(dy, dx), fish.angle) * 0.8 * k;
       }
     }
   }
 
-  // --- Pointer: darting when the pointer is on this fish. Nothing else.
+  // --- Pointer: startle when the pointer is on this fish. Nothing else.
   if (pointer && pointer.active && hitTest(fish, pointer.x, pointer.y)) {
     if (fish.burst < 0.35) {
-      // Fresh startle: a quick flick to one side as it bolts.
-      fish.flick = (opts.rng() < 0.5 ? -1 : 1) * (1.6 + opts.rng() * 1.4);
+      // C-start: a sharp bend to one side, then the power stroke.
+      const side = rand() < 0.5 ? -1 : 1;
+      fish.flick = side * (3.5 + rand() * 2);
+      fish.heading = fish.angle + side * (0.9 + rand() * 0.9);
+      fish.amp = Math.max(fish.amp, 1.3);
+      fish.rest = 0;
     }
     fish.burst = 1;
   }
-  const decay = Math.exp(-dt / Math.max(0.05, opts.dartDuration * 0.45));
-  fish.burst *= decay;
-  fish.flick *= Math.exp(-dt / 0.18);
+  fish.burst *= Math.exp(-dt / Math.max(0.05, opts.dartDuration * 0.45));
+  fish.flick *= Math.exp(-dt / 0.12);
 
-  // Turning is a little damped so heading changes stay smooth.
-  fish.turn += (turn - fish.turn) * Math.min(1, dt * 3);
+  // --- Turning: limited by speed (a slow fish can only turn slowly), smoothed.
+  const speedRatio = fish.speed / L;
+  const maxTurn = (0.35 + 1.5 * Math.min(1, speedRatio / 0.6)) * (1 + edge);
+  const turnTarget = clamp(want * 1.4, -maxTurn, maxTurn);
+  fish.turn += (turnTarget - fish.turn) * (1 - Math.exp(-dt * 2.5));
   fish.angle += (fish.turn + fish.flick) * dt;
 
-  const targetSpeed = fish.baseSpeed * (1 + opts.dartBoost * fish.burst) * opts.speed;
-  fish.speed += (targetSpeed - fish.speed) * Math.min(1, dt * (fish.burst > 0.1 ? 10 : 2));
+  // --- Burst and glide.
+  const cruise = fish.baseSpeed * opts.speed;
+  const target = fish.burst > 0.02
+    ? cruise * (1 + opts.dartBoost * fish.burst)
+    : fish.rest > 0 ? cruise * 0.22 : cruise;
+  if (fish.burst > 0.05 || Math.abs(want) > 0.9) {
+    fish.beating = true; // power through startles and sharp turns
+  } else if (fish.beating && fish.speed > target * 1.15) {
+    fish.beating = false; // up to speed: glide
+    fish.glideTo = 0.62 + rand() * 0.22;
+  } else if (!fish.beating && fish.speed < target * fish.glideTo) {
+    fish.beating = true; // slowed down: beat again
+  }
 
-  // Tail beat speeds up with swimming speed.
-  fish.phase += dt * TAU * (0.7 + 1.5 * (fish.speed / fish.length)) * Math.max(0.15, opts.speed);
+  // Tail-beat amplitude eases in and out; a gliding fish keeps a tiny residual sway.
+  const ampTarget = fish.beating ? 0.85 + 0.5 * fish.burst : fish.rest > 0 ? 0.05 : 0.1;
+  fish.amp += (ampTarget - fish.amp) * (1 - Math.exp(-dt * (fish.burst > 0.1 ? 10 : 4)));
 
-  // --- Move the head, then pull the rest of the rope behind it.
-  s[0] = hx + Math.cos(fish.angle) * fish.speed * dt;
-  s[1] = hy + Math.sin(fish.angle) * fish.speed * dt;
+  // Thrust while beating, water drag always.
+  if (fish.beating) {
+    const k = 1.3 * fish.amp * (1 + 4 * fish.burst);
+    fish.speed += (target * 1.3 - fish.speed) * (1 - Math.exp(-dt * k));
+  } else {
+    fish.speed *= Math.exp(-dt / 2.1);
+  }
+
+  // Tail beat frequency rises with speed (about 1-2 beats/s cruising, faster when bursting).
+  const hz = (0.8 + 2.4 * (fish.speed / L)) * (1 + 0.6 * fish.burst);
+  fish.phase += TAU * hz * dt * (0.3 + 0.7 * Math.min(1, fish.amp)) * Math.max(0.2, Math.min(1, opts.speed * 2));
+  fish.finPhase += TAU * 0.9 * dt;
+
+  // --- Move the head (with a slight surge on each tail stroke), then pull the rope.
+  const v = fish.speed * (1 + 0.06 * Math.min(1, fish.amp) * Math.sin(2 * fish.phase));
+  s[0] = hx + Math.cos(fish.angle) * v * dt;
+  s[1] = hy + Math.sin(fish.angle) * v * dt;
   for (let i = 1; i <= SPINE_SEGMENTS; i++) {
     const dx = s[i * 2] - s[i * 2 - 2];
     const dy = s[i * 2 + 1] - s[i * 2 - 1];
@@ -246,7 +308,7 @@ export function stepFish(fish, dt, time, opts) {
   }
 
   // Safety net: if a fish somehow ends up far outside (e.g. after a resize), bring it back.
-  const far = fish.length * 3;
+  const far = L * 3;
   if (s[0] < -far || s[0] > bounds.width + far || s[1] < -far || s[1] > bounds.height + far) {
     const cx = clamp(s[0], 0, bounds.width);
     const cy = clamp(s[1], 0, bounds.height);

@@ -96,9 +96,13 @@ Methods: `pond.set({...})`, `pond.pause()`, `pond.resume()`, `pond.destroy()`.
 
 ## How it works
 
-1. **Swim** (`src/sim.js`): each koi is a chain of spine points. The head wanders,
-   each point follows the one in front, and a travelling wave adds the tail beat.
-   When the pointer is on a fish's body, that fish gets a burst of speed.
+1. **Swim** (`src/sim.js`, `src/geometry.js`): each koi is a chain of spine points; each
+   point follows the one in front, so turns bend the whole body. Fish swim in burst-and-glide
+   cycles (tail beats, then a coast slowed by drag), hold a heading and then turn to a new one,
+   and sometimes hover. A body wave travels from head to tail, growing towards the tail and
+   continuing into the flexible tail fin; beat frequency rises with speed. Side fins tuck in at
+   speed and spread to brake, steer and scull. When the pointer is on a fish it startles:
+   a sharp C-bend, a burst of strong tail beats, then a glide back to calm.
 2. **Shade** (`src/geometry.js`, scene pass): fish are drawn as soft grey "ink
    amounts" into a small texture with one texel per output dot.
 3. **Dither** (`src/renderer.js`, dither pass): each dot's ink amount falls between two

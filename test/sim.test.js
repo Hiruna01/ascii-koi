@@ -72,18 +72,40 @@ test('a fish darts (speeds up) when the pointer is on it, then calms down', () =
   placeFish(f, 600, 400, 0);
   const o = opts({ fishes: [f] });
   for (let k = 0; k < 120; k++) stepFish(f, 1 / 60, k / 60, o);
-  const cruising = f.speed;
+  const cruising = f.baseSpeed;
 
   // Put the pointer on the middle of the body.
   const px = f.spine[(SPINE_SEGMENTS >> 1) * 2];
   const py = f.spine[(SPINE_SEGMENTS >> 1) * 2 + 1];
   stepFish(f, 1 / 60, 2, { ...o, pointer: { x: px, y: py, active: true } });
-  assert.equal(f.burst, 1 * Math.exp(-(1 / 60) / (1.2 * 0.45)));
+  assert.ok(f.burst > 0.95, `burst ${f.burst}`);
+  assert.ok(Math.abs(f.flick) > 3, 'startle starts with a sharp C-bend');
   for (let k = 0; k < 12; k++) stepFish(f, 1 / 60, 2 + k / 60, o);
-  assert.ok(f.speed > cruising * 2, `dart speed ${f.speed} vs cruising ${cruising}`);
+  assert.ok(f.speed > cruising * 2.5, `dart speed ${f.speed} vs cruising ${cruising}`);
 
-  for (let k = 0; k < 60 * 5; k++) stepFish(f, 1 / 60, 3 + k / 60, o);
-  assert.ok(f.speed < cruising * 1.3, `speed after calming ${f.speed}`);
+  for (let k = 0; k < 60 * 6; k++) stepFish(f, 1 / 60, 3 + k / 60, o);
+  assert.ok(f.speed < cruising * 1.6, `speed after calming ${f.speed}`);
+});
+
+test('swimming alternates between tail beats and glides', () => {
+  const f = createFish(mulberry32(21), bounds, 110);
+  placeFish(f, 600, 400, 0);
+  const o = opts({ fishes: [f] });
+  let switches = 0;
+  let last = f.beating;
+  let minAmp = Infinity;
+  let maxAmp = 0;
+  for (let k = 0; k < 60 * 20; k++) {
+    stepFish(f, 1 / 60, k / 60, o);
+    if (f.beating !== last) switches++;
+    last = f.beating;
+    if (k > 120) {
+      minAmp = Math.min(minAmp, f.amp);
+      maxAmp = Math.max(maxAmp, f.amp);
+    }
+  }
+  assert.ok(switches >= 6, `burst/glide switches in 20 s: ${switches}`);
+  assert.ok(minAmp < 0.3 && maxAmp > 0.7, `tail amplitude range ${minAmp}..${maxAmp}`);
 });
 
 test('pointer elsewhere does not affect the fish', () => {
