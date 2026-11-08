@@ -15,7 +15,6 @@ import {
   enterFromEdge,
   VARIETY_NAMES,
   scaleFish,
-  startle,
   stepFish,
 } from './sim.js';
 import { FLOATS_PER_VERTEX, VERTICES_PER_FISH, buildGeometry } from './geometry.js';
@@ -29,9 +28,6 @@ export const DEFAULTS = Object.freeze({
   fishScale: 1, // size multiplier on top of fishSize (0.5 = half, 2 = double); changes resize fish live
   butterfly: 0, // share of butterfly koi with long, flowing fins (0 = none, 0.2 = about 1 in 5, 1 = all)
   still: false, // true: fish stay where they are placed and only move their body, tail and fins
-  water: false, // faint light on the water, ripples on click and a slight refraction of the fish
-  waterAmount: 1, // how visible the water is (0.5 = fainter, 2 = stronger)
-  ripples: true, // with water on: a left click or tap on an empty part of the page sends out ripples
   varieties: 'all', // which koi varieties swim: 'all', or names like ['kohaku', 'showa', 'ogon'] (see VARIETY_NAMES)
   colors: 'ink', // 'ink' = single ink colour, 'koi' = real koi colours (red, black, white, gold...)
   ink: '#1a42e2', // dot colour when colors is 'ink'
@@ -167,60 +163,6 @@ export function createKoiPond(options = {}) {
   let onScreen = true;
   const pointer = { x: 0, y: 0, active: false };
 
-  // --- Water ripples (only with water on).
-  const RIPPLE_SPEED = 110; // CSS px per second, same as the shader
-  const RIPPLE_LIFE = 2.2;
-  const ripples = []; // { x, y, t0, s, hit: Set of fish already startled }
-  const rippleBuf = new Float32Array(32);
-  // Clicks on these never make ripples (and neither do clicks on text).
-  const NO_RIPPLE =
-    'a,button,input,select,textarea,label,summary,option,[role="button"],[role="link"],' +
-    '[role="tab"],[contenteditable=""],[contenteditable="true"],[data-koi-no-ripple]';
-  function rippleAllowed(el) {
-    if (!el || el.nodeType !== 1) return true;
-    if (el.closest(NO_RIPPLE)) return false;
-    for (const n of el.childNodes) if (n.nodeType === 3 && n.textContent.trim()) return false;
-    return true;
-  }
-  function addRipple(x, y, strength = 1) {
-    ripples.push({ x, y, t0: time, s: strength, hit: new Set() });
-    if (ripples.length > 8) ripples.shift();
-  }
-  function stepRipples() {
-    while (ripples.length && time - ripples[0].t0 > RIPPLE_LIFE) ripples.shift();
-    // Fish that a ring reaches startle and swim away from its centre.
-    for (const r of ripples) {
-      const radius = (time - r.t0) * RIPPLE_SPEED;
-      for (const f of fishes) {
-        if (r.hit.has(f)) continue;
-        const mid = (f.spine.length >> 2) << 1;
-        const dx = f.spine[mid] - r.x;
-        const dy = f.spine[mid + 1] - r.y;
-        const d = Math.hypot(dx, dy);
-        if (d < radius + f.length * 0.3 && d > radius - f.length * 0.8) {
-          r.hit.add(f);
-          startle(f, 0.75 * r.s, Math.atan2(dy, dx));
-        }
-      }
-    }
-  }
-  function waterColor() {
-    // Real koi colours: a darker blue-grey on light backgrounds, a pale teal on dark ones.
-    return backgroundLightness(bg) > 0.5 ? [0.36, 0.48, 0.6] : [0.62, 0.82, 0.86];
-  }
-  function waterFrame() {
-    if (!opts.water) return null;
-    let n = 0;
-    for (const r of ripples) {
-      rippleBuf[n * 4] = r.x;
-      rippleBuf[n * 4 + 1] = r.y;
-      rippleBuf[n * 4 + 2] = time - r.t0;
-      rippleBuf[n * 4 + 3] = r.s;
-      n++;
-    }
-    return { time, amount: Math.max(0, +opts.waterAmount || 0), ripples: rippleBuf, rippleCount: n, color: waterColor() };
-  }
-
   function fishSize() {
     const base = opts.fishSize === 'auto' ? defaultFishSize(bounds.width, bounds.height) : +opts.fishSize;
     return base * Math.max(0.1, +opts.fishScale || 1);
@@ -293,7 +235,6 @@ export function createKoiPond(options = {}) {
       stops: toneStops(opts.tones),
       natural: opts.colors === 'koi',
       light: backgroundLightness(bg),
-      water: waterFrame(),
     });
   }
 
@@ -317,7 +258,6 @@ export function createKoiPond(options = {}) {
       pointer: opts.interactive ? pointer : null,
       rng,
     };
-    if (opts.water) stepRipples();
     if (opts.still) {
       // Hover in place: a gentle tail beat and sculling fins, no travel.
       const k = stepOpts.speed;
@@ -337,18 +277,6 @@ export function createKoiPond(options = {}) {
   }
 
   // --- Pointer (listened on window so page content stays clickable).
-  // Left click or tap on an empty part of the page: ripples (with water on).
-  function onRippleDown(e) {
-    if (!opts.water || !opts.ripples || e.button !== 0 || destroyed) return;
-    if (!rippleAllowed(e.target)) return;
-    const r = canvas.getBoundingClientRect();
-    const x = e.clientX - r.left;
-    const y = e.clientY - r.top;
-    if (x < 0 || y < 0 || x > r.width || y > r.height) return;
-    addRipple(x, y);
-    if (!running) draw();
-  }
-
   function updatePointer(e) {
     const r = canvas.getBoundingClientRect();
     pointer.x = e.clientX - r.left;
@@ -398,7 +326,6 @@ export function createKoiPond(options = {}) {
   if (ok) {
     window.addEventListener('pointermove', updatePointer, { passive: true });
     window.addEventListener('pointerdown', updatePointer, { passive: true });
-    window.addEventListener('pointerdown', onRippleDown, { passive: true });
     window.addEventListener('pointerup', onPointerUp, { passive: true });
     window.addEventListener('pointercancel', onPointerUp, { passive: true });
     document.addEventListener('pointerout', onPointerOut, { passive: true });
@@ -436,12 +363,6 @@ export function createKoiPond(options = {}) {
       if (vertices.length < need) vertices = new Float32Array(need * 1.5);
       if (!running) draw();
       return f;
-    },
-    /** Send out a ripple at (x, y) in CSS pixels of the pond (needs water on). */
-    ripple(x, y, strength = 1) {
-      addRipple(x, y, strength);
-      if (!running) draw();
-      return api;
     },
     get fishes() {
       return fishes;
@@ -495,7 +416,6 @@ export function createKoiPond(options = {}) {
       api.pause();
       window.removeEventListener('pointermove', updatePointer);
       window.removeEventListener('pointerdown', updatePointer);
-      window.removeEventListener('pointerdown', onRippleDown);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
       document.removeEventListener('pointerout', onPointerOut);

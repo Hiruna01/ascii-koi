@@ -13,7 +13,6 @@ import {
   pickVariety,
   resolveVarieties,
   scaleFish,
-  startle,
   stepFish,
 } from '../src/sim.js';
 import { FLOATS_PER_VERTEX, VERTICES_PER_FISH, buildGeometry } from '../src/geometry.js';
@@ -86,7 +85,7 @@ test('a fish darts (speeds up) when the pointer is on it, then calms down', () =
   const py = f.spine[(SPINE_SEGMENTS >> 1) * 2 + 1];
   stepFish(f, 1 / 60, 2, { ...o, pointer: { x: px, y: py, active: true } });
   assert.ok(f.burst > 0.95, `burst ${f.burst}`);
-  assert.ok(Math.abs(f.flick) > 1.2, 'startle starts with a quick bend');
+  assert.ok(Math.abs(f.flick) > 1.5, 'startle starts with a quick bend');
   let peak = 0;
   for (let k = 0; k < 60; k++) {
     stepFish(f, 1 / 60, 2 + k / 60, o);
@@ -181,18 +180,6 @@ test('varieties can be limited, and a fish can enter from the edge', () => {
   for (let k = 0; k < 60 * 6; k++) stepFish(f, 1 / 60, k / 60, opts({ fishes: [f] }));
   const inside = f.spine[0] > 0 && f.spine[0] < bounds.width && f.spine[1] > 0 && f.spine[1] < bounds.height;
   assert.ok(inside, `swims in: ${f.spine[0]}, ${f.spine[1]}`);
-});
-
-test('a startle with a direction makes the fish flee that way', () => {
-  const f = createFish(mulberry32(41), bounds, 110);
-  placeFish(f, 600, 400, 0); // facing +x
-  f.heading = 0;
-  const away = Math.PI / 2; // flee towards +y
-  startle(f, 0.7, away);
-  assert.ok(f.burst >= 0.7);
-  assert.ok(Math.abs(angleDiff(f.heading, away)) < 0.35, `heading ${f.heading}`);
-  for (let k = 0; k < 90; k++) stepFish(f, 1 / 60, k / 60, opts({ fishes: [f] }));
-  assert.ok(Math.abs(angleDiff(f.angle, away)) < 0.8, `turned towards ${away}: ${f.angle}`);
 });
 
 test('geometry writes the expected number of vertices', () => {

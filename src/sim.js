@@ -249,29 +249,6 @@ export function hitTest(fish, px, py, pad = 6) {
 }
 
 /**
- * Startle a fish: a quick bend, then a few strong strokes. `strength` (0..1)
- * scales the burst. With `away` (an angle), the fish turns to flee in that
- * direction (used for water ripples); otherwise it bolts to a random side.
- */
-export function startle(fish, strength = 1, away = null) {
-  const rand = fish.rand;
-  if (fish.burst < 0.35) {
-    let side;
-    if (away == null) {
-      side = rand() < 0.5 ? -1 : 1;
-      fish.heading = fish.angle + side * (0.5 + rand() * 0.6);
-    } else {
-      side = angleDiff(away, fish.angle) >= 0 ? 1 : -1;
-      fish.heading = away + (rand() - 0.5) * 0.6;
-    }
-    fish.flick = side * (1.6 + rand() * 1.0) * (0.6 + 0.4 * strength);
-    fish.amp = Math.max(fish.amp, 1.1);
-    fish.rest = 0;
-  }
-  fish.burst = Math.max(fish.burst, strength);
-}
-
-/**
  * Advance one fish by dt seconds.
  * opts: { speed, dartBoost, dartDuration, bounds:{width,height}, fishes, pointer:{x,y,active} }
  */
@@ -329,8 +306,18 @@ export function stepFish(fish, dt, time, opts) {
     }
   }
 
-  // --- Pointer: startle when the pointer is on this fish.
-  if (pointer && pointer.active && hitTest(fish, pointer.x, pointer.y)) startle(fish, 1);
+  // --- Pointer: startle when the pointer is on this fish. Nothing else.
+  if (pointer && pointer.active && hitTest(fish, pointer.x, pointer.y)) {
+    if (fish.burst < 0.35) {
+      // Startle: a quick bend to one side, then a few strong strokes.
+      const side = rand() < 0.5 ? -1 : 1;
+      fish.flick = side * (1.6 + rand() * 1.0);
+      fish.heading = fish.angle + side * (0.5 + rand() * 0.6);
+      fish.amp = Math.max(fish.amp, 1.1);
+      fish.rest = 0;
+    }
+    fish.burst = 1;
+  }
   fish.burst *= Math.exp(-dt / Math.max(0.05, opts.dartDuration * 0.45));
   fish.flick *= Math.exp(-dt / 0.15);
 
