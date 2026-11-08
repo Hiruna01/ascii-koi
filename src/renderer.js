@@ -32,10 +32,9 @@ layout(location = 1) out vec4 oColor; // pigment colour, alpha = coverage
 uniform int u_natural;                // 1 = real koi colours
 uniform float u_light;                // 1 = light background (white koi need shading to show)
 
-// How close a colour is to white (white skin, platinum).
-float whiteness(vec3 c) {
-  return smoothstep(0.8, 0.9, min(c.r, min(c.g, c.b)));
-}
+// Every fish is painted as a real koi first (colour, lighting, scales). In the
+// single-ink look its brightness then decides how dense the dots are: black is
+// the deepest ink, red a mid tone, white skin pale with darker flanks.
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -53,9 +52,6 @@ float vnoise(vec2 p) {
 float blobs(vec2 p) {
   return vnoise(p) * 0.62 + vnoise(p * 2.1 + 3.1) * 0.27 + vnoise(p * 4.7 + 7.7) * 0.11;
 }
-
-const float WHITE = 0.25;   // "white" skin: a fill of the palest dots
-const float RIM = 0.44;     // the outline around every fish, a step darker than white skin
 
 // Real koi colours (Japanese koi terms).
 const vec3 SHIRO = vec3(0.96, 0.94, 0.9);    // shiroji: white skin
@@ -77,6 +73,15 @@ vec3 solidColor(float seed) {
 bool metallicSolid(float seed) {
   return fract(seed * 13.7) < 0.72;
 }
+float whiteness(vec3 c) {
+  return smoothstep(0.8, 0.9, min(c.r, min(c.g, c.b)));
+}
+// Ink amount from a colour's brightness. Darkened a little, so even white skin
+// keeps a sparse fill of pale dots and the markings read clearly.
+float inkOf(vec3 c) {
+  float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  return clamp(0.22 + (0.92 - lum) * 1.1, 0.0, 1.0);
+}
 
 void main() {
   float kind = v_meta.x;
@@ -85,7 +90,6 @@ void main() {
   float variety = v_meta.w;
   float u = v_uv.x;
   float v = v_uv.y;
-  float av = abs(v);
   float ink;   // ink amount for the single-colour look
   float amt;   // ink amount for the real-colour look
   vec3 col;    // real koi colour
@@ -93,103 +97,98 @@ void main() {
 
   if (kind < 0.5) {
     // ---------- Body ----------
-    a = 1.0 - smoothstep(0.9, 1.0, av);
-    float edge = smoothstep(0.62, 0.97, av);        // 0 along the spine, 1 at the rim
-    float ridge = 1.0 - smoothstep(0.0, 0.38, av);  // darker line down the back
+    // The quad is a little wider than the body: the outer band is a faint halo.
+    float av = abs(v) * 1.16;
+    float halo = smoothstep(0.98, 1.0, av);              // 1 outside the body outline
+    float body = 1.0 - halo;
+    a = body + halo * (1.0 - smoothstep(1.0, 1.16, av)) * 0.5;
+    float flank = smoothstep(0.2, 0.98, av);             // 0 on the spine, 1 at the outline
+    float back = 1.0 - smoothstep(0.0, 0.6, av);          // the top of the back
 
     vec2 sd = seed * vec2(37.1, 11.7);
     float n = blobs(vec2(u * 2.7, v * 0.7) + sd);
     float n2 = blobs(vec2(u * 3.9, v * 0.9) + sd.yx * 1.7);
+    // Markings sit on the back and leave the lower flanks white, as on real koi.
+    float onBack = 1.0 - smoothstep(0.62, 0.92, av);
 
-    // Scales: an offset grid of small rounded cells along the body.
-    vec2 sc = vec2(u * 13.0, v * 2.3);
-    sc.y += 0.5 * mod(floor(sc.x), 2.0);
-    float scaleRim = smoothstep(0.24, 0.5, length((fract(sc) - 0.5) * vec2(1.0, 1.2)));
+    // Scales: a faint net of diamonds along the back.
+    vec2 g = vec2(u * 11.0 + v * 1.6, u * 11.0 - v * 1.6);
+    vec2 gf = abs(fract(g) - 0.5);
+    float net = (1.0 - smoothstep(0.0, 0.09, min(gf.x, gf.y))) * back;
 
-    float base;
     if (variety < 0.5) {
       // Kohaku (red on white). Half of them carry small black spots: Taisho Sanke.
-      float hi = smoothstep(0.47, 0.505, n);
+      float hi = smoothstep(0.43, 0.465, n) * onBack;
       float sanke = step(0.5, fract(seed * 7.3));
       float spots = sanke * smoothstep(0.72, 0.75, blobs(vec2(u * 7.0, v * 1.8) + sd * 2.3))
-                  * smoothstep(0.16, 0.26, u);
-      base = max(mix(WHITE, 0.97, hi), 0.97 * spots);
+                  * smoothstep(0.16, 0.26, u) * onBack;
       col = mix(mix(SHIRO, HI, hi), SUMI, spots);
     } else if (variety < 1.5) {
-      // Showa: black body with red and white markings.
-      float m = smoothstep(0.55, 0.58, n2);
+      // Showa: black body (it wraps round the flanks) with red and white markings.
+      float m = smoothstep(0.55, 0.58, n2) * onBack;
       float w = smoothstep(0.58, 0.61, n);
-      base = mix(mix(0.97, 0.6, m), WHITE, w);
       col = mix(mix(SUMI, HI, m), SHIRO, w);
     } else if (variety < 2.5) {
       // Asagi: blue-grey back with a net of lighter scale edges, red-orange flanks.
-      base = 0.6 + 0.2 * ridge - 0.16 * scaleRim * (1.0 - ridge * 0.6);
-      vec3 back = mix(ASAGI * 0.86, ASAGI_NET, scaleRim * (1.0 - ridge * 0.6));
-      float flank = smoothstep(0.5, 0.92, av) * smoothstep(0.06, 0.3, u);
-      col = mix(back, HI * 1.05, flank * 0.9);
+      col = mix(ASAGI * 0.86, ASAGI_NET, net * 1.6);
+      col = mix(col, HI * 1.05, smoothstep(0.5, 0.92, av) * smoothstep(0.06, 0.3, u) * 0.9);
     } else if (variety < 3.5) {
       // Single colour: metallic ogon (gold, platinum, orange, yellow), chagoi, benigoi.
-      base = 0.93 - 0.12 * scaleRim * (1.0 - ridge);
       vec3 c = solidColor(seed);
-      float shine = metallicSolid(seed) ? 0.55 : 0.2;
-      col = mix(c * 0.84, min(c * 1.2 + 0.05, vec3(1.0)), scaleRim * shine);
+      col = metallicSolid(seed) ? mix(c, min(c * 1.25 + 0.06, vec3(1.0)), net) : c;
     } else {
       // Tancho: white with one red spot on the head, sometimes a few black marks.
       float head = 1.0 - smoothstep(0.7, 1.0, length(vec2((u - 0.14) * 9.0, v * 1.9)));
-      float marks = smoothstep(0.62, 0.65, n);
-      base = mix(WHITE, 0.95, max(head, marks));
+      float marks = smoothstep(0.62, 0.65, n) * onBack;
       col = mix(mix(SHIRO, SUMI, marks), HI, head);
     }
+    // A faint scale net on every fish.
+    col *= 1.0 - 0.07 * net;
 
-    // White skin shows a faint scale texture too.
-    float isWhite = 1.0 - smoothstep(WHITE, WHITE + 0.2, base);
-    base += isWhite * 0.05 * (1.0 - scaleRim);
-    col *= 1.0 - 0.05 * scaleRim;
-
-    ink = base + 0.05 * ridge;
-    // Pale outline: dark areas fade to the rim tone, white areas gain it.
-    ink = mix(ink, RIM, edge * 0.8);
-    // Snout and tail stem are a touch lighter, so the head reads rounded.
-    ink = mix(ink, min(ink, 0.55), (1.0 - smoothstep(0.0, 0.06, u)) * 0.7);
-    ink = mix(ink, 0.5, smoothstep(0.88, 1.0, u) * 0.6);
-
-    // Real colours: solid body, rounded shading towards the sides. On a light
-    // background, white skin turns a soft grey with a darker rim so it still reads.
+    // Rounded body: lit along the spine with a sheen down the back, darker flanks.
+    // On a light background white skin needs a little more shading to show.
     float wt = whiteness(col) * u_light;
-    col = mix(col, col * vec3(0.88, 0.88, 0.9), wt);
-    col *= 1.0 - (0.06 + 0.05 * wt) * ridge - 0.06 * wt * scaleRim;
-    col = mix(col, col * mix(0.68, 0.52, u_light), edge * 0.8);
-    amt = mix(0.98, 0.72, edge * 0.85) * mix(1.0, 0.8, smoothstep(0.9, 1.0, u));
+    float lightAmt = 1.06 + 0.06 * back - mix(0.34, 0.5, wt) * flank * flank;
+    col *= lightAmt;
+    // Snout and tail stem a touch darker, so the ends read rounded.
+    col *= 1.0 - 0.18 * (1.0 - smoothstep(0.0, 0.07, u)) - 0.12 * smoothstep(0.86, 1.0, u);
 
     // Eyes: tiny dark points on each side of the head.
-    float eye = 1.0 - smoothstep(0.012, 0.022, length(vec2(u - 0.085, (av - 0.62) * 0.13)));
-    ink = mix(ink, 1.0, eye);
+    float eye = 1.0 - smoothstep(0.012, 0.022, length(vec2(u - 0.085, (abs(v) - 0.55) * 0.13)));
     col = mix(col, SUMI, eye);
+    col = clamp(col, 0.0, 1.0);
+
+    ink = inkOf(col);
+    amt = mix(0.98, 0.8, flank);
+    // Halo: a faint scatter of pale dots just outside the body.
+    ink = mix(ink, 0.2, halo);
+    amt = mix(amt, 0.25, halo);
   } else {
-    // ---------- Fins: translucent, tinted like the body ----------
+    // ---------- Fins: translucent, tinted by the fish's own colour ----------
+    float av = abs(v);
     vec3 finCol;
     if (variety < 0.5 || variety > 3.5) finCol = SHIRO;
     else if (variety < 1.5) finCol = mix(SUMI, SHIRO, smoothstep(0.05, 0.6, u)); // black fin base
     else if (variety < 2.5) finCol = mix(HI, SHIRO, 0.25);
     else finCol = solidColor(seed);
+    float finInk = mix(0.22, inkOf(finCol), 0.35);
 
     if (kind < 1.5) {
-      // Tail fin: big, pale and forked, with fin rays.
-      float cut = (u - 0.5) * 0.85;
-      float notch = cut > 0.0 ? 1.0 - smoothstep(cut - 0.16, cut + 0.02, av) : 0.0;
-      float edge = 1.0 - smoothstep(0.72, 1.0, av);
-      float tip = 1.0 - smoothstep(0.78, 1.0, u + 0.18 * (1.0 - av));
-      a = edge * tip * (1.0 - notch);
-      float rays = 0.85 + 0.15 * sin(v * 15.0 + seed * 20.0);
-      ink = mix(0.42, 0.15, smoothstep(0.0, 0.5, u)) * rays;
-      amt = mix(0.66, 0.3, smoothstep(0.0, 0.5, u)) * rays;
+      // Tail fin: a broad fan with rounded lobes either side of a shallow fork.
+      float end = 0.8 + 0.2 * sin(3.14159 * clamp(av, 0.0, 1.0));
+      float edge = 1.0 - smoothstep(0.75, 1.0, av);
+      a = edge * (1.0 - smoothstep(end - 0.12, end, u));
+      float rays = 0.82 + 0.18 * sin(v * 14.0 + seed * 20.0);
+      float fade = mix(1.0, 0.55, smoothstep(0.0, 0.8, u));
+      ink = (finInk + 0.18 * (1.0 - smoothstep(0.0, 0.3, u))) * rays * fade;
+      amt = mix(0.62, 0.3, smoothstep(0.0, 0.6, u)) * rays;
     } else {
-      // Paired fins: translucent rounded fans with rays.
+      // Paired fins: small translucent rounded fans with rays.
       float r = length(vec2((u - 0.55) / 0.5, v / (0.3 + 0.7 * u)));
-      a = 1.0 - smoothstep(0.62, 1.0, r);
-      float rays = 0.88 + 0.12 * sin(v * 10.0 + u * 3.0);
-      ink = mix(0.3, 0.13, u) * rays;
-      amt = mix(0.58, 0.28, u) * rays;
+      a = (1.0 - smoothstep(0.55, 1.0, r)) * 0.85;
+      float rays = 0.85 + 0.15 * sin(v * 10.0 + u * 3.0);
+      ink = finInk * mix(1.0, 0.6, u) * rays;
+      amt = mix(0.5, 0.24, u) * rays;
     }
     // White fins on a light background: tint them grey so they stay visible.
     col = mix(finCol, finCol * 0.6, whiteness(finCol) * u_light);

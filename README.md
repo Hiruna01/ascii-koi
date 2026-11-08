@@ -82,10 +82,10 @@ background colour, move it to `html` (or remove it) so the pond shows through.
 | `background` | `'auto'` | Light paper (`#eff5fd`) for ink, dark pond (`#0d2a30`) for koi colours; or any colour, or `'transparent'`. Both colour modes work on light and dark backgrounds; on light ones, white koi get a soft grey shading so they stay visible. |
 | `mode` | `'bayer'` | `'bayer'` or `'lines'`. |
 | `tones` | `4` | Shades of ink between paper and full ink; `1` gives single-colour dots. |
-| `pixelSize` | `1.5` | Size of one dot in CSS px. |
+| `pixelSize` | `2` | Size of one dot in CSS px. |
 | `speed` | `1` | Swimming speed multiplier. |
-| `dartBoost` | `3.5` | Extra speed while darting (3.5 means 4.5x normal). |
-| `dartDuration` | `1.2` | Seconds until a dart has mostly faded. |
+| `dartBoost` | `1.5` | Extra speed while darting (1.5 means up to 2.5x normal). |
+| `dartDuration` | `1` | Seconds until a dart has mostly faded. |
 | `interactive` | `true` | Turn the pointer reaction off. |
 | `reducedMotion` | `'auto'` | Slows the pond for users who prefer reduced motion (`true`/`false` to force). |
 | `maxDpr` | `2` | Upper limit for device pixel ratio. |
@@ -103,8 +103,11 @@ Methods: `pond.set({...})`, `pond.pause()`, `pond.resume()`, `pond.destroy()`.
    continuing into the flexible tail fin; beat frequency rises with speed. Side fins tuck in at
    speed and spread to brake, steer and scull. When the pointer is on a fish it startles:
    a sharp C-bend, a burst of strong tail beats, then a glide back to calm.
-2. **Shade** (`src/geometry.js`, scene pass): fish are drawn as soft grey "ink
-   amounts" into a small texture with one texel per output dot.
+2. **Shade** (`src/renderer.js`, scene pass): each fish is painted as a real koi into a small
+   texture with one texel per output dot: markings that keep to the back, a body lit along the
+   spine and darker down the flanks, a faint net of scales, eyes, translucent fins tinted by the
+   body colour, and a faint halo. In the single-ink look the brightness of that painting sets
+   the ink amount (black = deepest, red = mid, white skin = pale).
 3. **Dither** (`src/renderer.js`, dither pass): each dot's ink amount falls between two
    palette tones (mixes of `background` and `ink`); an 8x8 Bayer threshold (or a line
    screen) picks which of the two the dot gets.

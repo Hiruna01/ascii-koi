@@ -14,7 +14,7 @@ import { FLOATS_PER_VERTEX, VERTICES_PER_FISH, buildGeometry } from '../src/geom
 const bounds = { width: 1200, height: 800 };
 
 function opts(extra = {}) {
-  return { speed: 1, dartBoost: 3.5, dartDuration: 1.2, bounds, fishes: [], pointer: null, rng: mulberry32(1), ...extra };
+  return { speed: 1, dartBoost: 1.5, dartDuration: 1, bounds, fishes: [], pointer: null, rng: mulberry32(1), ...extra };
 }
 
 function placeFish(fish, x, y, angle) {
@@ -79,9 +79,14 @@ test('a fish darts (speeds up) when the pointer is on it, then calms down', () =
   const py = f.spine[(SPINE_SEGMENTS >> 1) * 2 + 1];
   stepFish(f, 1 / 60, 2, { ...o, pointer: { x: px, y: py, active: true } });
   assert.ok(f.burst > 0.95, `burst ${f.burst}`);
-  assert.ok(Math.abs(f.flick) > 3, 'startle starts with a sharp C-bend');
-  for (let k = 0; k < 12; k++) stepFish(f, 1 / 60, 2 + k / 60, o);
-  assert.ok(f.speed > cruising * 2.5, `dart speed ${f.speed} vs cruising ${cruising}`);
+  assert.ok(Math.abs(f.flick) > 1.5, 'startle starts with a quick bend');
+  let peak = 0;
+  for (let k = 0; k < 60; k++) {
+    stepFish(f, 1 / 60, 2 + k / 60, o);
+    peak = Math.max(peak, f.speed);
+  }
+  assert.ok(peak > cruising * 1.7, `dart speed ${peak} vs cruising ${cruising}`);
+  assert.ok(peak < cruising * 3.2, `dart stays gentle: ${peak} vs cruising ${cruising}`);
 
   for (let k = 0; k < 60 * 6; k++) stepFish(f, 1 / 60, 3 + k / 60, o);
   assert.ok(f.speed < cruising * 1.6, `speed after calming ${f.speed}`);

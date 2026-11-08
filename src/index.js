@@ -25,10 +25,10 @@ export const DEFAULTS = Object.freeze({
   //                     Any background works with either colour mode.
   mode: 'bayer', // 'bayer' | 'lines'
   tones: 4, // shades of ink between paper and full ink (1 = single colour, max 8)
-  pixelSize: 1.5, // size of one dot in CSS px
+  pixelSize: 2, // size of one dot in CSS px
   speed: 1, // swimming speed multiplier
-  dartBoost: 3.5, // extra speed while darting (3.5 = 4.5x normal)
-  dartDuration: 1.2, // seconds until a dart has mostly faded
+  dartBoost: 1.5, // extra speed while darting (1.5 = up to 2.5x normal)
+  dartDuration: 1, // seconds until a dart has mostly faded
   interactive: true, // dart when the pointer is on a fish
   maxDpr: 2, // cap for devicePixelRatio
   reducedMotion: 'auto', // 'auto' slows everything down if the user prefers reduced motion

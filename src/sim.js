@@ -107,7 +107,7 @@ export function bodyHalfWidth(u) {
 
 /** Default fish length for a viewport, in CSS pixels. */
 export function defaultFishSize(width, height) {
-  return clamp(Math.min(width, height) * 0.105, 50, 112);
+  return clamp(Math.min(width, height) * 0.13, 52, 128);
 }
 
 export function createFish(rng, bounds, size) {
@@ -245,17 +245,17 @@ export function stepFish(fish, dt, time, opts) {
   // --- Pointer: startle when the pointer is on this fish. Nothing else.
   if (pointer && pointer.active && hitTest(fish, pointer.x, pointer.y)) {
     if (fish.burst < 0.35) {
-      // C-start: a sharp bend to one side, then the power stroke.
+      // Startle: a quick bend to one side, then a few strong strokes.
       const side = rand() < 0.5 ? -1 : 1;
-      fish.flick = side * (3.5 + rand() * 2);
-      fish.heading = fish.angle + side * (0.9 + rand() * 0.9);
-      fish.amp = Math.max(fish.amp, 1.3);
+      fish.flick = side * (1.6 + rand() * 1.0);
+      fish.heading = fish.angle + side * (0.5 + rand() * 0.6);
+      fish.amp = Math.max(fish.amp, 1.1);
       fish.rest = 0;
     }
     fish.burst = 1;
   }
   fish.burst *= Math.exp(-dt / Math.max(0.05, opts.dartDuration * 0.45));
-  fish.flick *= Math.exp(-dt / 0.12);
+  fish.flick *= Math.exp(-dt / 0.15);
 
   // --- Turning: limited by speed (a slow fish can only turn slowly), smoothed.
   const speedRatio = fish.speed / L;
@@ -279,19 +279,19 @@ export function stepFish(fish, dt, time, opts) {
   }
 
   // Tail-beat amplitude eases in and out; a gliding fish keeps a tiny residual sway.
-  const ampTarget = fish.beating ? 0.85 + 0.5 * fish.burst : fish.rest > 0 ? 0.05 : 0.1;
-  fish.amp += (ampTarget - fish.amp) * (1 - Math.exp(-dt * (fish.burst > 0.1 ? 10 : 4)));
+  const ampTarget = fish.beating ? 0.85 + 0.25 * fish.burst : fish.rest > 0 ? 0.05 : 0.1;
+  fish.amp += (ampTarget - fish.amp) * (1 - Math.exp(-dt * (fish.burst > 0.1 ? 7 : 4)));
 
   // Thrust while beating, water drag always.
   if (fish.beating) {
-    const k = 1.3 * fish.amp * (1 + 4 * fish.burst);
-    fish.speed += (target * 1.3 - fish.speed) * (1 - Math.exp(-dt * k));
+    const k = 1.3 * fish.amp * (1 + 2.5 * fish.burst);
+    fish.speed += (target * (1.3 - 0.2 * fish.burst) - fish.speed) * (1 - Math.exp(-dt * k));
   } else {
     fish.speed *= Math.exp(-dt / 2.1);
   }
 
   // Tail beat frequency rises with speed (about 1-2 beats/s cruising, faster when bursting).
-  const hz = (0.8 + 2.4 * (fish.speed / L)) * (1 + 0.6 * fish.burst);
+  const hz = (0.8 + 2.4 * (fish.speed / L)) * (1 + 0.3 * fish.burst);
   fish.phase += TAU * hz * dt * (0.3 + 0.7 * Math.min(1, fish.amp)) * Math.max(0.2, Math.min(1, opts.speed * 2));
   fish.finPhase += TAU * 0.9 * dt;
 

@@ -151,8 +151,9 @@ function writeFish(f) {
     const ua = i / SPINE_SEGMENTS;
     const ub = (i + 1) / SPINE_SEGMENTS;
     // A little width at the very tip keeps the rounded snout from collapsing to a point.
-    const wa = Math.max(bodyHalfWidth(ua), 0.03) * L;
-    const wb = bodyHalfWidth(ub) * L;
+    // 16% wider than the body itself: the outer band is drawn as a faint halo.
+    const wa = Math.max(bodyHalfWidth(ua), 0.03) * L * 1.16;
+    const wb = bodyHalfWidth(ub) * L * 1.16;
     const j = i + 1;
     quad(
       px[i] - nx[i] * wa, py[i] - ny[i] * wa, px[i] + nx[i] * wa, py[i] + ny[i] * wa,
