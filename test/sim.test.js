@@ -6,6 +6,8 @@ import {
   bodyHalfWidth,
   createFish,
   hitTest,
+  VARIETIES,
+  VARIETY_WEIGHTS,
   mulberry32,
   scaleFish,
   stepFish,
@@ -137,6 +139,24 @@ test('scaleFish resizes a fish in place and keeps it swimming', () => {
     const d = Math.hypot(f.spine[i * 2 + 2] - f.spine[i * 2], f.spine[i * 2 + 3] - f.spine[i * 2 + 1]);
     assert.ok(Math.abs(d - f.segLen) < 1e-3, `segment ${i} length ${d} != ${f.segLen}`);
   }
+});
+
+test('all koi varieties appear, and butterfly koi only when asked for', () => {
+  assert.ok(Math.abs(VARIETY_WEIGHTS.reduce((a, b) => a + b, 0) - 1) < 1e-9, 'weights add up to 1');
+  assert.equal(VARIETY_WEIGHTS.length, Object.keys(VARIETIES).length);
+  const rng = mulberry32(77);
+  const seen = new Set();
+  let long = 0;
+  for (let i = 0; i < 2000; i++) {
+    const f = createFish(rng, bounds, 100);
+    seen.add(f.variety);
+    if (f.longFin) long++;
+  }
+  assert.equal(seen.size, VARIETY_WEIGHTS.length, 'every variety shows up');
+  assert.equal(long, 0, 'no butterfly koi by default');
+  let longSome = 0;
+  for (let i = 0; i < 2000; i++) if (createFish(rng, bounds, 100, 0.2).longFin) longSome++;
+  assert.ok(longSome > 300 && longSome < 500, `about 1 in 5 butterfly koi: ${longSome}/2000`);
 });
 
 test('geometry writes the expected number of vertices', () => {

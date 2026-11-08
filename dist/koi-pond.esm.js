@@ -3,8 +3,44 @@
 // src/sim.js
 var TAU = Math.PI * 2;
 var SPINE_SEGMENTS = 16;
-var VARIETIES = Object.freeze({ KOHAKU: 0, SHOWA: 1, ASAGI: 2, SOLID: 3, TANCHO: 4 });
-var VARIETY_WEIGHTS = [0.3, 0.24, 0.18, 0.16, 0.12];
+var VARIETIES = Object.freeze({
+  KOHAKU: 0,
+  SHOWA: 1,
+  ASAGI: 2,
+  SOLID: 3,
+  TANCHO: 4,
+  SHIRO_UTSURI: 5,
+  HI_UTSURI: 6,
+  KI_UTSURI: 7,
+  SHIRO_BEKKO: 8,
+  AI_GOROMO: 9,
+  GOSHIKI: 10,
+  SHUSUI: 11,
+  KUMONRYU: 12,
+  OCHIBA: 13,
+  KUJAKU: 14,
+  HARIWAKE: 15,
+  SORAGOI: 16
+});
+var VARIETY_WEIGHTS = [
+  0.17,
+  0.13,
+  0.07,
+  0.09,
+  0.06,
+  0.05,
+  0.04,
+  0.03,
+  0.05,
+  0.04,
+  0.04,
+  0.04,
+  0.04,
+  0.03,
+  0.04,
+  0.04,
+  0.04
+];
 function mulberry32(seed) {
   let a = seed >>> 0;
   return function() {
@@ -67,7 +103,7 @@ function bodyHalfWidth(u) {
 function defaultFishSize(width, height) {
   return clamp(Math.min(width, height) * 0.13, 52, 128);
 }
-function createFish(rng, bounds, size) {
+function createFish(rng, bounds, size, butterfly = 0) {
   const length = size * (0.8 + rng() * 0.38);
   const baseSpeed = length * (0.3 + rng() * 0.2);
   const segLen = length / SPINE_SEGMENTS;
@@ -81,6 +117,7 @@ function createFish(rng, bounds, size) {
     spine[i * 2 + 1] = y - Math.sin(angle) * segLen * i;
   }
   let pick = rng();
+  const finRoll = rng();
   let variety = 0;
   while (variety < VARIETY_WEIGHTS.length - 1 && pick >= VARIETY_WEIGHTS[variety]) {
     pick -= VARIETY_WEIGHTS[variety];
@@ -118,6 +155,10 @@ function createFish(rng, bounds, size) {
     // slow sculling of the side fins
     rand: mulberry32(rng() * 4294967296 >>> 0),
     // per-fish randomness
+    finRoll,
+    // fixed per fish: long fins when finRoll < the butterfly option
+    longFin: finRoll < butterfly,
+    // butterfly koi: long, flowing fins
     seed: rng(),
     depth: rng() < 0.3 ? 0.45 + rng() * 0.4 : rng() * 0.25,
     // deeper fish are paler
@@ -302,7 +343,7 @@ function vert(x, y, u, v, kind, f) {
   out[o++] = kind;
   out[o++] = f.seed;
   out[o++] = f.depth;
-  out[o++] = f.variety;
+  out[o++] = f.variety + (f.longFin ? 32 : 0);
 }
 function quad(alx, aly, arx, ary, blx, bly, brx, bry, ua, ub, kind, f) {
   vert(alx, aly, ua, -1, kind, f);
@@ -371,8 +412,9 @@ function writeFish(f) {
     px[i] = s[i * 2] + nx[i] * off;
     py[i] = s[i * 2 + 1] + ny[i] * off;
   }
-  pairedFins(f, Math.round(SPINE_SEGMENTS * 0.2), L * 0.21, L * 0.09, 1.2, 0.32, 0.3, 0);
-  pairedFins(f, Math.round(SPINE_SEGMENTS * 0.56), L * 0.12, L * 0.048, 0.85, 0.38, 0.18, 2.1);
+  const fin = f.longFin ? 1.7 : 1;
+  pairedFins(f, Math.round(SPINE_SEGMENTS * 0.2), L * 0.21 * fin, L * 0.09 * (f.longFin ? 1.35 : 1), 1.2, 0.32, 0.3, 0);
+  pairedFins(f, Math.round(SPINE_SEGMENTS * 0.56), L * 0.12 * fin, L * 0.048 * (f.longFin ? 1.35 : 1), 0.85, 0.38, 0.18, 2.1);
   {
     const e = SPINE_SEGMENTS;
     let dx = s[e * 2] - s[e * 2 - 2];
@@ -380,11 +422,11 @@ function writeFish(f) {
     const dl = Math.hypot(dx, dy) || 1;
     dx /= dl;
     dy /= dl;
-    const tailLen = L * 0.33;
+    const tailLen = L * (f.longFin ? 0.62 : 0.33);
     for (let j = 0; j < TAIL_ROWS; j++) {
       const t = j / (TAIL_ROWS - 1);
       const along = t * tailLen;
-      const off = waveOffset(f, 1 + along / L, 0.55 * t);
+      const off = waveOffset(f, 1 + along / L, (f.longFin ? 1.1 : 0.55) * t) * (f.longFin ? 0.85 : 1);
       tcx[j] = s[e * 2] + dx * along + nx[e] * off;
       tcy[j] = s[e * 2 + 1] + dy * along + ny[e] * off;
     }
@@ -394,7 +436,7 @@ function writeFish(f) {
       const a = Math.max(0, j - 1);
       const b = Math.min(TAIL_ROWS - 1, j + 1);
       const ang = Math.atan2(tcy[b] - tcy[a], tcx[b] - tcx[a]);
-      const hw = L * (0.03 + 0.19 * Math.pow(t, 0.85));
+      const hw = L * (0.03 + (f.longFin ? 0.27 : 0.19) * Math.pow(t, 0.85));
       const qx = -Math.sin(ang);
       const qy = Math.cos(ang);
       const row = {
@@ -516,7 +558,9 @@ void main() {
   float kind = v_meta.x;
   float seed = v_meta.y;
   float depth = v_meta.z;
-  float variety = v_meta.w;
+  // variety carries +32 for long-finned (butterfly) koi.
+  float longFin = step(31.5, v_meta.w);
+  float variety = mod(v_meta.w, 32.0);
   float u = v_uv.x;
   float v = v_uv.y;
   float ink;   // ink amount for the single-colour look
@@ -543,7 +587,9 @@ void main() {
     // Scales: a faint net of diamonds along the back.
     vec2 g = vec2(u * 11.0 + v * 1.6, u * 11.0 - v * 1.6);
     vec2 gf = abs(fract(g) - 0.5);
-    float net = (1.0 - smoothstep(0.0, 0.09, min(gf.x, gf.y))) * back;
+    float netLine = 1.0 - smoothstep(0.0, 0.09, min(gf.x, gf.y)); // scale outlines, whole body
+    float net = netLine * back;
+    float doitsu = 0.0; // scaleless (doitsu) koi: no scale net
 
     if (variety < 0.5) {
       // Kohaku (red on white). Half of them carry small black spots: Taisho Sanke.
@@ -565,14 +611,68 @@ void main() {
       // Single colour: metallic ogon (gold, platinum, orange, yellow), chagoi, benigoi.
       vec3 c = solidColor(seed);
       col = metallicSolid(seed) ? mix(c, min(c * 1.25 + 0.06, vec3(1.0)), net) : c;
-    } else {
+    } else if (variety < 4.5) {
       // Tancho: white with one red spot on the head, sometimes a few black marks.
       float head = 1.0 - smoothstep(0.7, 1.0, length(vec2((u - 0.14) * 9.0, v * 1.9)));
       float marks = smoothstep(0.62, 0.65, n) * onBack;
       col = mix(mix(SHIRO, SUMI, marks), HI, head);
+    } else if (variety < 7.5) {
+      // Utsurimono: black body with bold bands of one colour that wrap round the
+      // flanks. Shiro (white), Hi (red) or Ki (yellow) Utsuri.
+      vec3 c = variety < 5.5 ? SHIRO : variety < 6.5 ? HI : vec3(0.95, 0.8, 0.22);
+      float band = smoothstep(0.5, 0.535, blobs(vec2(u * 2.3, v * 0.55) + sd * 1.3));
+      // Black lightning across the head, the Utsuri trademark.
+      band *= 1.0 - (1.0 - smoothstep(0.0, 0.2, u)) * smoothstep(0.45, 0.5, vnoise(vec2(u * 12.0, v * 3.0) + sd));
+      col = mix(SUMI, c, band);
+    } else if (variety < 8.5) {
+      // Shiro Bekko: white with small black spots on the back, clean head.
+      float spots = smoothstep(0.68, 0.71, blobs(vec2(u * 6.0, v * 1.6) + sd * 2.1))
+                  * onBack * smoothstep(0.2, 0.3, u);
+      col = mix(SHIRO, SUMI, spots);
+    } else if (variety < 9.5) {
+      // Ai Goromo: a kohaku whose red scales are each outlined in deep indigo.
+      float hi = smoothstep(0.43, 0.465, n) * onBack;
+      col = mix(SHIRO, mix(HI, vec3(0.16, 0.2, 0.42), netLine * 0.85), hi);
+    } else if (variety < 10.5) {
+      // Goshiki ("five colours"): a dark blue-grey net over white and red.
+      float hi = smoothstep(0.47, 0.5, n) * onBack;
+      col = mix(vec3(0.82, 0.83, 0.86), HI * 0.85, hi);
+      col = mix(col, vec3(0.16, 0.18, 0.26), netLine * (0.55 + 0.4 * back));
+    } else if (variety < 11.5) {
+      // Shusui: scaleless asagi. Sky-blue back with one row of big dark-blue
+      // scales down the spine, red-orange along the sides.
+      doitsu = 1.0;
+      float row = 1.0 - smoothstep(0.32, 0.42, length(vec2(fract(u * 9.0) - 0.5, v * 2.4)));
+      row *= smoothstep(0.12, 0.2, u) * (1.0 - smoothstep(0.85, 0.95, u));
+      col = mix(vec3(0.6, 0.71, 0.8), vec3(0.17, 0.27, 0.47), row);
+      col = mix(col, HI * 1.05, smoothstep(0.5, 0.9, av) * smoothstep(0.06, 0.3, u) * 0.9);
+    } else if (variety < 12.5) {
+      // Kumonryu ("dragon in the clouds"): scaleless, black and white in swirls.
+      doitsu = 1.0;
+      vec2 q = vec2(u * 3.0, v * 1.1) + sd;
+      float w = blobs(q + 1.6 * vec2(vnoise(q * 1.4), vnoise(q * 1.4 + 9.0)));
+      col = mix(SUMI, SHIRO, smoothstep(0.52, 0.56, w));
+    } else if (variety < 13.5) {
+      // Ochiba Shigure ("autumn leaves on water"): grey-blue with bronze patches.
+      float leaf = smoothstep(0.5, 0.54, n) * onBack;
+      col = mix(vec3(0.6, 0.65, 0.7), vec3(0.62, 0.42, 0.24), leaf);
+    } else if (variety < 14.5) {
+      // Kujaku (peacock): metallic white with a dark scale net and orange patches.
+      float hi = smoothstep(0.47, 0.5, n) * onBack;
+      col = mix(vec3(0.93, 0.94, 0.95), vec3(0.97, 0.5, 0.15), hi);
+      col = mix(col, vec3(0.16, 0.18, 0.24), netLine * (0.55 + 0.35 * back));
+      col = mix(col, min(col * 1.2 + 0.05, vec3(1.0)), (1.0 - netLine) * back * 0.3);
+    } else if (variety < 15.5) {
+      // Hariwake: metallic platinum with gold patches.
+      float gold = smoothstep(0.48, 0.52, n) * onBack;
+      col = mix(vec3(0.9, 0.91, 0.92), vec3(0.95, 0.7, 0.22), gold);
+      col = mix(col, min(col * 1.2 + 0.06, vec3(1.0)), net);
+    } else {
+      // Soragoi: plain sky-grey.
+      col = vec3(0.55, 0.59, 0.64);
     }
-    // A faint scale net on every fish.
-    col *= 1.0 - 0.07 * net;
+    // A faint scale net on every fish (not on scaleless doitsu koi).
+    col *= 1.0 - 0.07 * net * (1.0 - doitsu);
 
     // Rounded body: lit along the spine with a sheen down the back, darker flanks.
     // On a light background white skin needs a little more shading to show.
@@ -596,15 +696,27 @@ void main() {
     // ---------- Fins: translucent, tinted by the fish's own colour ----------
     float av = abs(v);
     vec3 finCol;
-    if (variety < 0.5 || variety > 3.5) finCol = SHIRO;
-    else if (variety < 1.5) finCol = mix(SUMI, SHIRO, smoothstep(0.05, 0.6, u)); // black fin base
-    else if (variety < 2.5) finCol = mix(HI, SHIRO, 0.25);
-    else finCol = solidColor(seed);
+    vec3 base = mix(SUMI, SHIRO, smoothstep(0.05, 0.6, u)); // black at the fin base (motoguro)
+    if (variety < 0.5 || (variety > 3.5 && variety < 4.5) || (variety > 7.5 && variety < 10.5)) finCol = SHIRO;
+    else if (variety < 1.5) finCol = base;
+    else if (variety < 2.5 || (variety > 10.5 && variety < 11.5)) finCol = mix(HI, SHIRO, 0.25);
+    else if (variety < 3.5) finCol = solidColor(seed);
+    else if (variety < 5.5) finCol = base;
+    else if (variety < 6.5) finCol = mix(SUMI, HI, smoothstep(0.05, 0.6, u));
+    else if (variety < 7.5) finCol = mix(SUMI, vec3(0.95, 0.8, 0.22), smoothstep(0.05, 0.6, u));
+    else if (variety < 12.5) finCol = mix(SUMI, SHIRO, 0.6);
+    else if (variety < 13.5) finCol = vec3(0.66, 0.68, 0.7);
+    else if (variety < 14.5) finCol = mix(SHIRO, vec3(0.97, 0.5, 0.15), 0.35);
+    else if (variety < 15.5) finCol = mix(SHIRO, vec3(0.95, 0.7, 0.22), 0.4);
+    else finCol = vec3(0.6, 0.63, 0.67);
     float finInk = mix(0.22, inkOf(finCol), 0.35);
 
     if (kind < 1.5) {
       // Tail fin: a broad fan with rounded lobes either side of a shallow fork.
-      float end = 0.8 + 0.2 * sin(3.14159 * clamp(av, 0.0, 1.0));
+      // Butterfly koi: long, flowing, softly scalloped tail.
+      float end = longFin > 0.5
+        ? 0.86 + 0.08 * sin(3.14159 * clamp(av, 0.0, 1.0)) + 0.04 * sin(v * 9.0 + seed * 7.0)
+        : 0.8 + 0.2 * sin(3.14159 * clamp(av, 0.0, 1.0));
       float edge = 1.0 - smoothstep(0.75, 1.0, av);
       a = edge * (1.0 - smoothstep(end - 0.12, end, u));
       float rays = 0.82 + 0.18 * sin(v * 14.0 + seed * 20.0);
@@ -860,6 +972,8 @@ var DEFAULTS = Object.freeze({
   // body length in CSS px, or 'auto' (scales with the viewport)
   fishScale: 1,
   // size multiplier on top of fishSize (0.5 = half, 2 = double); changes resize fish live
+  butterfly: 0,
+  // share of butterfly koi with long, flowing fins (0 = none, 0.2 = about 1 in 5, 1 = all)
   colors: "ink",
   // 'ink' = single ink colour, 'koi' = real koi colours (red, black, white, gold...)
   ink: "#1a42e2",
@@ -997,7 +1111,7 @@ function createKoiPond(options = {}) {
   function syncFishCount() {
     const n = Math.max(0, Math.floor(opts.count));
     const size = fishSize();
-    while (fishes.length < n) fishes.push(createFish(rng, bounds, size));
+    while (fishes.length < n) fishes.push(createFish(rng, bounds, size, +opts.butterfly || 0));
     if (fishes.length > n) fishes.length = n;
     const need = n * VERTICES_PER_FISH * FLOATS_PER_VERTEX;
     if (vertices.length < need) vertices = new Float32Array(need);
@@ -1163,6 +1277,7 @@ function createKoiPond(options = {}) {
         if (k !== 1 && Number.isFinite(k)) for (const f of fishes) scaleFish(f, k);
       }
       if ("count" in partial) syncFishCount();
+      if ("butterfly" in partial) for (const f of fishes) f.longFin = f.finRoll < (+opts.butterfly || 0);
       if (!running) draw();
       return api;
     },

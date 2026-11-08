@@ -28,7 +28,7 @@ function vert(x, y, u, v, kind, f) {
   out[o++] = kind;
   out[o++] = f.seed;
   out[o++] = f.depth;
-  out[o++] = f.variety;
+  out[o++] = f.variety + (f.longFin ? 32 : 0);
 }
 
 // Quad from two "rows" (a = front, b = back), each with a left and right point.
@@ -108,8 +108,10 @@ function writeFish(f) {
   }
 
   // --- Paired fins first: they sit under the body.
-  pairedFins(f, Math.round(SPINE_SEGMENTS * 0.2), L * 0.21, L * 0.09, 1.2, 0.32, 0.3, 0);
-  pairedFins(f, Math.round(SPINE_SEGMENTS * 0.56), L * 0.12, L * 0.048, 0.85, 0.38, 0.18, 2.1);
+  // Butterfly koi have long, flowing fins.
+  const fin = f.longFin ? 1.7 : 1;
+  pairedFins(f, Math.round(SPINE_SEGMENTS * 0.2), L * 0.21 * fin, L * 0.09 * (f.longFin ? 1.35 : 1), 1.2, 0.32, 0.3, 0);
+  pairedFins(f, Math.round(SPINE_SEGMENTS * 0.56), L * 0.12 * fin, L * 0.048 * (f.longFin ? 1.35 : 1), 0.85, 0.38, 0.18, 2.1);
 
   // --- Tail fin: the body wave carries on into the fin, which flexes a little
   // behind it like a soft paddle.
@@ -120,11 +122,12 @@ function writeFish(f) {
     const dl = Math.hypot(dx, dy) || 1;
     dx /= dl;
     dy /= dl;
-    const tailLen = L * 0.33;
+    const tailLen = L * (f.longFin ? 0.62 : 0.33);
     for (let j = 0; j < TAIL_ROWS; j++) {
       const t = j / (TAIL_ROWS - 1);
       const along = t * tailLen;
-      const off = waveOffset(f, 1 + along / L, 0.55 * t);
+      // Long fins trail further behind the beat and sway more.
+      const off = waveOffset(f, 1 + along / L, (f.longFin ? 1.1 : 0.55) * t) * (f.longFin ? 0.85 : 1);
       tcx[j] = s[e * 2] + dx * along + nx[e] * off;
       tcy[j] = s[e * 2 + 1] + dy * along + ny[e] * off;
     }
@@ -134,7 +137,7 @@ function writeFish(f) {
       const a = Math.max(0, j - 1);
       const b = Math.min(TAIL_ROWS - 1, j + 1);
       const ang = Math.atan2(tcy[b] - tcy[a], tcx[b] - tcx[a]);
-      const hw = L * (0.03 + 0.19 * Math.pow(t, 0.85));
+      const hw = L * (0.03 + (f.longFin ? 0.27 : 0.19) * Math.pow(t, 0.85));
       const qx = -Math.sin(ang);
       const qy = Math.cos(ang);
       const row = {

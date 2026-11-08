@@ -28,6 +28,7 @@ if (script && script.hasAttribute('data-koi-pond')) {
     speed: num(d.speed),
     fishSize: d.fishSize ? (d.fishSize === 'auto' ? 'auto' : Number(d.fishSize)) : undefined,
     fishScale: num(d.fishScale),
+    butterfly: num(d.butterfly),
     seed: num(d.seed),
   };
   for (const k of Object.keys(opts)) if (opts[k] === undefined) delete opts[k];

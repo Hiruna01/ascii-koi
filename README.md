@@ -3,9 +3,12 @@
 A dithered koi pond for your website background. Koi made of ordered-dither dots
 swim behind your content; put your pointer on a fish and it darts away.
 
-- WebGL2, no dependencies, about 10 KB gzipped
+- WebGL2, no dependencies, about 13 KB gzipped
 - Multi-tone Bayer dot or line-screen dithering (paper, pale, light, mid and deep ink)
-- Five koi varieties with markings, scales, eyes and translucent fins
+- 17 real koi varieties with markings, scales, eyes and translucent fins: Kohaku, Taisho Sanke,
+  Showa, Tancho, Shiro/Hi/Ki Utsuri, Shiro Bekko, Ai Goromo, Goshiki, Asagi, Shusui, Kumonryu,
+  Ochiba Shigure, Kujaku, Hariwake, Soragoi and single-colour Ogon, Kigoi, Chagoi, Benigoi
+- Optional butterfly koi with long, flowing fins (`butterfly: 0.2`)
 - Real koi colours (`colors: 'koi'`): red, black and white Kohaku, Sanke and Showa, Tancho,
   blue-grey Asagi, metallic gold and platinum Ogon, brown Chagoi, on dark pond water
 - Works as a full-page background or inside a single element
@@ -78,6 +81,7 @@ background colour, move it to `html` (or remove it) so the pond shows through.
 | `count` | `10` | Number of koi. |
 | `fishSize` | `'auto'` | Body length in CSS px; auto scales with the viewport. |
 | `fishScale` | `1` | Size multiplier for the fish (`0.5` = half, `2` = double). Changing it with `pond.set()` resizes the swimming fish smoothly. |
+| `butterfly` | `0` | Share of butterfly koi with long, flowing fins (`0.2` = about 1 in 5, `1` = all). |
 | `colors` | `'ink'` | `'ink'` for one ink colour, `'koi'` for real koi colours. |
 | `ink` | `'#1a42e2'` | Dot colour when `colors` is `'ink'` (hex or `rgb()`). |
 | `background` | `'auto'` | Light paper (`#eff5fd`) for ink, dark pond (`#0d2a30`) for koi colours; or any colour, or `'transparent'`. Both colour modes work on light and dark backgrounds; on light ones, white koi get a soft grey shading so they stay visible. |

@@ -21,6 +21,7 @@ export const DEFAULTS = Object.freeze({
   count: 10, // number of koi
   fishSize: 'auto', // body length in CSS px, or 'auto' (scales with the viewport)
   fishScale: 1, // size multiplier on top of fishSize (0.5 = half, 2 = double); changes resize fish live
+  butterfly: 0, // share of butterfly koi with long, flowing fins (0 = none, 0.2 = about 1 in 5, 1 = all)
   colors: 'ink', // 'ink' = single ink colour, 'koi' = real koi colours (red, black, white, gold...)
   ink: '#1a42e2', // dot colour when colors is 'ink'
   background: 'auto', // 'auto', any colour, or 'transparent'. Auto = light paper for ink, dark pond for koi.
@@ -162,7 +163,7 @@ export function createKoiPond(options = {}) {
   function syncFishCount() {
     const n = Math.max(0, Math.floor(opts.count));
     const size = fishSize();
-    while (fishes.length < n) fishes.push(createFish(rng, bounds, size));
+    while (fishes.length < n) fishes.push(createFish(rng, bounds, size, +opts.butterfly || 0));
     if (fishes.length > n) fishes.length = n;
     const need = n * VERTICES_PER_FISH * FLOATS_PER_VERTEX;
     if (vertices.length < need) vertices = new Float32Array(need);
@@ -345,6 +346,7 @@ export function createKoiPond(options = {}) {
         if (k !== 1 && Number.isFinite(k)) for (const f of fishes) scaleFish(f, k);
       }
       if ('count' in partial) syncFishCount();
+      if ('butterfly' in partial) for (const f of fishes) f.longFin = f.finRoll < (+opts.butterfly || 0);
       if (!running) draw();
       return api;
     },

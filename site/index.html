@@ -36,7 +36,7 @@
       </div>
       <ul class="meta" aria-label="Highlights">
         <li>WebGL2</li>
-        <li>10 KB gzipped</li>
+        <li>13 KB gzipped</li>
         <li>No dependencies</li>
         <li>MIT</li>
       </ul>
@@ -102,7 +102,7 @@ pond.destroy();</code></pre>
         <li>
           <span class="step-n">02</span>
           <h3>Shade</h3>
-          <p>Each fish is painted as a real koi in a tiny offscreen image, one pixel per dot: markings on the back (kohaku, showa, asagi and more), a body lit along the spine and darker down the flanks, a net of scales, eyes and see-through fins.</p>
+          <p>Each fish is painted as a real koi in a tiny offscreen image, one pixel per dot: markings on the back (17 real varieties: kohaku, sanke, showa, utsuri, bekko, goromo, goshiki, asagi, shusui, kumonryu, kujaku, ogon and more), a body lit along the spine and darker down the flanks, a net of scales, eyes and see-through fins.</p>
         </li>
         <li>
           <span class="step-n">03</span>
@@ -125,6 +125,7 @@ pond.destroy();</code></pre>
             <tr><td><code>count</code></td><td><code>10</code></td><td>Number of koi.</td></tr>
             <tr><td><code>fishSize</code></td><td><code>'auto'</code></td><td>Body length in CSS pixels. Auto scales with the viewport.</td></tr>
             <tr><td><code>fishScale</code></td><td><code>1</code></td><td>Size multiplier for the fish (<code>0.5</code> = half, <code>2</code> = double). Changing it with <code>pond.set()</code> resizes the swimming fish smoothly.</td></tr>
+            <tr><td><code>butterfly</code></td><td><code>0</code></td><td>Share of butterfly koi with long, flowing fins: <code>0.2</code> is about 1 in 5, <code>1</code> is all of them.</td></tr>
             <tr><td><code>colors</code></td><td><code>'ink'</code></td><td><code>'ink'</code> for one ink colour, or <code>'koi'</code> for real koi colours: red, black and white Kohaku, Sanke and Showa, Tancho, blue-grey Asagi, metallic gold and platinum Ogon, brown Chagoi.</td></tr>
             <tr><td><code>ink</code></td><td><code>'#1a42e2'</code></td><td>Dot colour when <code>colors</code> is <code>'ink'</code> (hex or <code>rgb()</code>).</td></tr>
             <tr><td><code>background</code></td><td><code>'auto'</code></td><td>Light paper (<code>#eff5fd</code>) for ink, dark pond water (<code>#0d2a30</code>) for real koi colours. Or any colour, or <code>'transparent'</code>. Both colour modes work on light and dark backgrounds.</td></tr>

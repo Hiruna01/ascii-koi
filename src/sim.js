@@ -21,8 +21,19 @@ export const TAU = Math.PI * 2;
 export const SPINE_SEGMENTS = 16;
 
 // Koi varieties (colour patterns), interpreted by the scene shader.
-export const VARIETIES = Object.freeze({ KOHAKU: 0, SHOWA: 1, ASAGI: 2, SOLID: 3, TANCHO: 4 });
-const VARIETY_WEIGHTS = [0.3, 0.24, 0.18, 0.16, 0.12];
+// SOLID covers the single-colour koi: Ogon (gold, platinum, orange), Kigoi, Chagoi, Benigoi.
+// KOHAKU includes Taisho Sanke (half of them carry small black spots).
+export const VARIETIES = Object.freeze({
+  KOHAKU: 0, SHOWA: 1, ASAGI: 2, SOLID: 3, TANCHO: 4,
+  SHIRO_UTSURI: 5, HI_UTSURI: 6, KI_UTSURI: 7, SHIRO_BEKKO: 8, AI_GOROMO: 9, GOSHIKI: 10,
+  SHUSUI: 11, KUMONRYU: 12, OCHIBA: 13, KUJAKU: 14, HARIWAKE: 15, SORAGOI: 16,
+});
+// How common each variety is (same order as above). The classic gosanke stay the most common.
+export const VARIETY_WEIGHTS = [
+  0.17, 0.13, 0.07, 0.09, 0.06,
+  0.05, 0.04, 0.03, 0.05, 0.04, 0.04,
+  0.04, 0.04, 0.03, 0.04, 0.04, 0.04,
+];
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -110,7 +121,7 @@ export function defaultFishSize(width, height) {
   return clamp(Math.min(width, height) * 0.13, 52, 128);
 }
 
-export function createFish(rng, bounds, size) {
+export function createFish(rng, bounds, size, butterfly = 0) {
   const length = size * (0.8 + rng() * 0.38);
   const baseSpeed = length * (0.3 + rng() * 0.2); // body lengths per second
   const segLen = length / SPINE_SEGMENTS;
@@ -125,6 +136,7 @@ export function createFish(rng, bounds, size) {
   }
 
   let pick = rng();
+  const finRoll = rng();
   let variety = 0;
   while (variety < VARIETY_WEIGHTS.length - 1 && pick >= VARIETY_WEIGHTS[variety]) {
     pick -= VARIETY_WEIGHTS[variety];
@@ -150,6 +162,8 @@ export function createFish(rng, bounds, size) {
     rest: 0, // seconds left of slow hovering
     finPhase: rng() * TAU, // slow sculling of the side fins
     rand: mulberry32((rng() * 4294967296) >>> 0), // per-fish randomness
+    finRoll, // fixed per fish: long fins when finRoll < the butterfly option
+    longFin: finRoll < butterfly, // butterfly koi: long, flowing fins
     seed: rng(),
     depth: rng() < 0.3 ? 0.45 + rng() * 0.4 : rng() * 0.25, // deeper fish are paler
     variety,
