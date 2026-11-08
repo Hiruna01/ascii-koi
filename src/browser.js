@@ -4,7 +4,7 @@
 //   <script src="koi-pond.min.js" data-koi-pond></script>
 // Options as data attributes (all optional):
 //   data-colors="koi" data-ink="#1a42e2" data-background="#eff5fd" data-mode="lines"
-//   data-count="12" data-pixel-size="2" data-speed="0.8" data-tones="4" data-target="#hero"
+//   data-count="12" data-fish-scale="1.4" data-pixel-size="2" data-speed="0.8" data-tones="4" data-target="#hero"
 
 import { createKoiPond, DEFAULTS } from './index.js';
 
@@ -27,6 +27,7 @@ if (script && script.hasAttribute('data-koi-pond')) {
     pixelSize: num(d.pixelSize),
     speed: num(d.speed),
     fishSize: d.fishSize ? (d.fishSize === 'auto' ? 'auto' : Number(d.fishSize)) : undefined,
+    fishScale: num(d.fishScale),
     seed: num(d.seed),
   };
   for (const k of Object.keys(opts)) if (opts[k] === undefined) delete opts[k];

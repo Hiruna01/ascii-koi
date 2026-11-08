@@ -9,6 +9,7 @@ import {
   defaultFishSize,
   mulberry32,
   rescaleFishes,
+  scaleFish,
   stepFish,
 } from './sim.js';
 import { FLOATS_PER_VERTEX, VERTICES_PER_FISH, buildGeometry } from './geometry.js';
@@ -19,6 +20,7 @@ export const DEFAULTS = Object.freeze({
   canvas: null, // use your own <canvas> instead (sized by your CSS)
   count: 10, // number of koi
   fishSize: 'auto', // body length in CSS px, or 'auto' (scales with the viewport)
+  fishScale: 1, // size multiplier on top of fishSize (0.5 = half, 2 = double); changes resize fish live
   colors: 'ink', // 'ink' = single ink colour, 'koi' = real koi colours (red, black, white, gold...)
   ink: '#1a42e2', // dot colour when colors is 'ink'
   background: 'auto', // 'auto', any colour, or 'transparent'. Auto = light paper for ink, dark pond for koi.
@@ -153,7 +155,8 @@ export function createKoiPond(options = {}) {
   const pointer = { x: 0, y: 0, active: false };
 
   function fishSize() {
-    return opts.fishSize === 'auto' ? defaultFishSize(bounds.width, bounds.height) : +opts.fishSize;
+    const base = opts.fishSize === 'auto' ? defaultFishSize(bounds.width, bounds.height) : +opts.fishSize;
+    return base * Math.max(0.1, +opts.fishScale || 1);
   }
 
   function syncFishCount() {
@@ -328,7 +331,7 @@ export function createKoiPond(options = {}) {
     },
     /** Change any option at runtime. */
     set(partial = {}) {
-      const prevSize = opts.fishSize;
+      const prevSize = fishSize();
       Object.assign(opts, partial);
       if ('ink' in partial) ink = parseColor(opts.ink);
       if ('background' in partial || 'colors' in partial) {
@@ -336,8 +339,12 @@ export function createKoiPond(options = {}) {
         if (!gl) canvas.style.background = `rgba(${bg[0] * 255},${bg[1] * 255},${bg[2] * 255},${bg[3]})`;
       }
       if ('maxDpr' in partial) measure();
-      if ('fishSize' in partial && partial.fishSize !== prevSize) regenerate();
-      else if ('count' in partial) syncFishCount();
+      if ('fishSize' in partial || 'fishScale' in partial) {
+        // Resize the fish that are already swimming instead of replacing them.
+        const k = fishSize() / prevSize;
+        if (k !== 1 && Number.isFinite(k)) for (const f of fishes) scaleFish(f, k);
+      }
+      if ('count' in partial) syncFishCount();
       if (!running) draw();
       return api;
     },

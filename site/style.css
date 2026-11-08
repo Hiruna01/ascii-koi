@@ -88,20 +88,6 @@ main { padding: 0 clamp(20px, 5vw, 56px); }
   text-align: center;
   padding: 120px 0 150px;
 }
-.badge {
-  display: inline-flex; align-items: center; gap: 10px;
-  padding: 7px 14px 7px 12px; margin-bottom: 36px;
-  border: 1px solid var(--line); border-radius: 999px;
-  font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none;
-  transition: border-color 0.2s ease, color 0.2s ease;
-}
-.badge:hover { border-color: var(--ink); color: var(--text); }
-.badge-dot {
-  width: 6px; height: 6px; border-radius: 50%; background: var(--ink);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink) 18%, transparent);
-}
-.badge-arrow { transition: transform 0.2s ease; }
-.badge:hover .badge-arrow { transform: translateX(3px); }
 h1 {
   font-size: clamp(44px, 8.2vw, 108px); line-height: 0.96; letter-spacing: -0.05em;
   font-weight: 650; margin: 0 0 28px; max-width: 13ch;
@@ -302,11 +288,17 @@ html.fish-only .exit-view.visible { opacity: 1; visibility: visible; }
 html.fish-only .exit-view:focus-visible { opacity: 1; visibility: visible; }
 
 /* ---------- Small screens ---------- */
+@media (max-width: 1180px) {
+  .dock .range { gap: 6px; }
+  .dock .range input { width: 64px; }
+}
+@media (max-width: 960px) {
+  .dock .range:first-of-type { display: none; }
+}
 @media (max-width: 760px) {
   .nav nav a:not(:last-child) { display: none; }
   .steps { grid-template-columns: 1fr; }
   .hero { padding: 110px 0 140px; }
-  .badge { margin-bottom: 28px; }
   .cta { width: 100%; }
   .cta .btn, .cta .snippet { width: 100%; justify-content: center; }
   .meta { font-size: 10.5px; letter-spacing: 0.06em; margin-top: 40px; }

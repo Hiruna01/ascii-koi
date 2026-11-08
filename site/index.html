@@ -24,11 +24,6 @@
 
   <main id="top">
     <section class="hero">
-      <a class="badge" href="#install">
-        <span class="badge-dot" aria-hidden="true"></span>
-        New: real koi colours on any background
-        <span class="badge-arrow" aria-hidden="true">&rarr;</span>
-      </a>
       <h1>A <em>koi pond</em> for your website background.</h1>
       <p class="lede">Dithered koi swim quietly behind your content. Point at one and it darts&nbsp;away.</p>
       <div class="cta">
@@ -129,6 +124,7 @@ pond.destroy();</code></pre>
             <tr><td><code>canvas</code></td><td><code>null</code></td><td>Use your own <code>&lt;canvas&gt;</code> instead (sized by your CSS).</td></tr>
             <tr><td><code>count</code></td><td><code>10</code></td><td>Number of koi.</td></tr>
             <tr><td><code>fishSize</code></td><td><code>'auto'</code></td><td>Body length in CSS pixels. Auto scales with the viewport.</td></tr>
+            <tr><td><code>fishScale</code></td><td><code>1</code></td><td>Size multiplier for the fish (<code>0.5</code> = half, <code>2</code> = double). Changing it with <code>pond.set()</code> resizes the swimming fish smoothly.</td></tr>
             <tr><td><code>colors</code></td><td><code>'ink'</code></td><td><code>'ink'</code> for one ink colour, or <code>'koi'</code> for real koi colours: red, black and white Kohaku, Sanke and Showa, Tancho, blue-grey Asagi, metallic gold and platinum Ogon, brown Chagoi.</td></tr>
             <tr><td><code>ink</code></td><td><code>'#1a42e2'</code></td><td>Dot colour when <code>colors</code> is <code>'ink'</code> (hex or <code>rgb()</code>).</td></tr>
             <tr><td><code>background</code></td><td><code>'auto'</code></td><td>Light paper (<code>#eff5fd</code>) for ink, dark pond water (<code>#0d2a30</code>) for real koi colours. Or any colour, or <code>'transparent'</code>. Both colour modes work on light and dark backgrounds.</td></tr>
@@ -188,6 +184,9 @@ pond.destroy();</code></pre>
     </label>
     <label class="range">Fish
       <input type="range" min="1" max="24" step="1" value="10" data-opt="count" />
+    </label>
+    <label class="range">Size
+      <input type="range" min="0.5" max="2" step="0.05" value="1" data-opt="fishScale" />
     </label>
   </div>
 

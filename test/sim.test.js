@@ -7,6 +7,7 @@ import {
   createFish,
   hitTest,
   mulberry32,
+  scaleFish,
   stepFish,
 } from '../src/sim.js';
 import { FLOATS_PER_VERTEX, VERTICES_PER_FISH, buildGeometry } from '../src/geometry.js';
@@ -122,6 +123,20 @@ test('pointer elsewhere does not affect the fish', () => {
     stepFish(b, 1 / 60, k / 60, { ...o, fishes: [b], pointer: { x: -500, y: -500, active: true } });
   }
   assert.deepEqual(Array.from(a.spine), Array.from(b.spine));
+});
+
+test('scaleFish resizes a fish in place and keeps it swimming', () => {
+  const f = createFish(mulberry32(31), bounds, 100);
+  placeFish(f, 600, 400, 0.3);
+  const L = f.length;
+  scaleFish(f, 1.5);
+  assert.ok(Math.abs(f.length - L * 1.5) < 1e-9);
+  assert.equal(f.spine[0], 600);
+  for (let k = 0; k < 120; k++) stepFish(f, 1 / 60, k / 60, opts({ fishes: [f] }));
+  for (let i = 0; i < SPINE_SEGMENTS; i++) {
+    const d = Math.hypot(f.spine[i * 2 + 2] - f.spine[i * 2], f.spine[i * 2 + 3] - f.spine[i * 2 + 1]);
+    assert.ok(Math.abs(d - f.segLen) < 1e-3, `segment ${i} length ${d} != ${f.segLen}`);
+  }
 });
 
 test('geometry writes the expected number of vertices', () => {

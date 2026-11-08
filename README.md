@@ -77,6 +77,7 @@ background colour, move it to `html` (or remove it) so the pond shows through.
 | `canvas` | `null` | Use your own `<canvas>` instead (sized by your CSS). |
 | `count` | `10` | Number of koi. |
 | `fishSize` | `'auto'` | Body length in CSS px; auto scales with the viewport. |
+| `fishScale` | `1` | Size multiplier for the fish (`0.5` = half, `2` = double). Changing it with `pond.set()` resizes the swimming fish smoothly. |
 | `colors` | `'ink'` | `'ink'` for one ink colour, `'koi'` for real koi colours. |
 | `ink` | `'#1a42e2'` | Dot colour when `colors` is `'ink'` (hex or `rgb()`). |
 | `background` | `'auto'` | Light paper (`#eff5fd`) for ink, dark pond (`#0d2a30`) for koi colours; or any colour, or `'transparent'`. Both colour modes work on light and dark backgrounds; on light ones, white koi get a soft grey shading so they stay visible. |

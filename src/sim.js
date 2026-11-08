@@ -321,6 +321,25 @@ export function stepFish(fish, dt, time, opts) {
   }
 }
 
+/**
+ * Grow or shrink a fish in place by factor k, keeping its head where it is and
+ * its pose, swimming speed in body lengths per second, and everything else.
+ */
+export function scaleFish(fish, k) {
+  if (!(k > 0) || k === 1) return;
+  const s = fish.spine;
+  const hx = s[0];
+  const hy = s[1];
+  for (let i = 1; i <= SPINE_SEGMENTS; i++) {
+    s[i * 2] = hx + (s[i * 2] - hx) * k;
+    s[i * 2 + 1] = hy + (s[i * 2 + 1] - hy) * k;
+  }
+  fish.length *= k;
+  fish.segLen *= k;
+  fish.baseSpeed *= k;
+  fish.speed *= k;
+}
+
 /** Move all fish proportionally when the pond is resized. */
 export function rescaleFishes(fishes, from, to) {
   if (!from.width || !from.height) return;
