@@ -8,7 +8,10 @@ import {
   hitTest,
   VARIETIES,
   VARIETY_WEIGHTS,
+  enterFromEdge,
   mulberry32,
+  pickVariety,
+  resolveVarieties,
   scaleFish,
   stepFish,
 } from '../src/sim.js';
@@ -157,6 +160,26 @@ test('all koi varieties appear, and butterfly koi only when asked for', () => {
   let longSome = 0;
   for (let i = 0; i < 2000; i++) if (createFish(rng, bounds, 100, 0.2).longFin) longSome++;
   assert.ok(longSome > 300 && longSome < 500, `about 1 in 5 butterfly koi: ${longSome}/2000`);
+});
+
+test('varieties can be limited, and a fish can enter from the edge', () => {
+  const allowed = resolveVarieties('kohaku, ogon,unknown');
+  assert.deepEqual(allowed, [0, 3]);
+  assert.equal(resolveVarieties('all'), null);
+  const rng = mulberry32(5);
+  for (let i = 0; i < 200; i++) {
+    const v = createFish(rng, bounds, 100, 0, allowed).variety;
+    assert.ok(v === 0 || v === 3, `variety ${v}`);
+  }
+  assert.equal(pickVariety(0.5, [9]), 9);
+  const f = createFish(rng, bounds, 100);
+  enterFromEdge(f, bounds, rng);
+  const h = [f.spine[0], f.spine[1]];
+  const outside = h[0] < 0 || h[0] > bounds.width || h[1] < 0 || h[1] > bounds.height;
+  assert.ok(outside, `starts outside: ${h}`);
+  for (let k = 0; k < 60 * 6; k++) stepFish(f, 1 / 60, k / 60, opts({ fishes: [f] }));
+  const inside = f.spine[0] > 0 && f.spine[0] < bounds.width && f.spine[1] > 0 && f.spine[1] < bounds.height;
+  assert.ok(inside, `swims in: ${f.spine[0]}, ${f.spine[1]}`);
 });
 
 test('geometry writes the expected number of vertices', () => {

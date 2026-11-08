@@ -65,6 +65,7 @@
   function openPicker(open) {
     picker.hidden = !open;
     bgBtn.setAttribute('aria-expanded', String(open));
+    if (open && typeof openTypes === 'function') openTypes(false);
   }
   bgBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -89,6 +90,92 @@
     applyLook();
   });
 
+  // --- Butterfly koi toggle: about 1 in 4 fish get long, flowing fins.
+  const butterflyBtn = document.querySelector('[data-action="butterfly"]');
+  butterflyBtn.addEventListener('click', () => {
+    const on = butterflyBtn.getAttribute('aria-pressed') !== 'true';
+    butterflyBtn.setAttribute('aria-pressed', String(on));
+    pond.set({ butterfly: on ? 0.25 : 0 });
+  });
+
+  // --- Koi types panel: choose which varieties swim, add single fish.
+  const TYPES = [
+    ['kohaku', 'Kohaku / Sanke', 'linear-gradient(135deg,#f5f0e6 0 40%,#e5491d 40% 72%,#f5f0e6 72%)'],
+    ['showa', 'Showa', 'linear-gradient(135deg,#17171b 0 38%,#e5491d 38% 62%,#f5f0e6 62% 80%,#17171b 80%)'],
+    ['tancho', 'Tancho', 'radial-gradient(circle at 50% 32%,#e5491d 0 24%,#f5f0e6 25%)'],
+    ['asagi', 'Asagi', 'linear-gradient(135deg,#6b89a3 0 60%,#e5491d 60%)'],
+    ['ogon', 'Ogon & solids', 'radial-gradient(circle at 35% 30%,#ffe9a6,#e8a92a 62%)'],
+    ['shiro-utsuri', 'Shiro Utsuri', 'linear-gradient(135deg,#17171b 0 52%,#f5f0e6 52%)'],
+    ['hi-utsuri', 'Hi Utsuri', 'linear-gradient(135deg,#17171b 0 52%,#e5491d 52%)'],
+    ['ki-utsuri', 'Ki Utsuri', 'linear-gradient(135deg,#17171b 0 52%,#f0cf3a 52%)'],
+    ['shiro-bekko', 'Shiro Bekko', 'radial-gradient(circle at 32% 62%,#17171b 0 13%,transparent 14%),radial-gradient(circle at 66% 34%,#17171b 0 11%,transparent 12%),#f5f0e6'],
+    ['ai-goromo', 'Ai Goromo', 'linear-gradient(135deg,#f5f0e6 0 30%,transparent 30%),repeating-linear-gradient(45deg,#e5491d 0 3px,#2b356f 3px 4px)'],
+    ['goshiki', 'Goshiki', 'linear-gradient(135deg,transparent 52%,rgba(229,73,29,.85) 52%),repeating-linear-gradient(45deg,#c9cdd6 0 3px,#2a2e40 3px 4px)'],
+    ['shusui', 'Shusui', 'radial-gradient(circle at 50% 50%,#2b4473 0 14%,transparent 15%),linear-gradient(90deg,#e5491d 0 20%,#9cb6cc 20% 80%,#e5491d 80%)'],
+    ['kumonryu', 'Kumonryu', 'radial-gradient(circle at 32% 30%,#f5f0e6 0 26%,transparent 27%),radial-gradient(circle at 70% 70%,#f5f0e6 0 18%,transparent 19%),#17171b'],
+    ['ochiba', 'Ochiba Shigure', 'linear-gradient(135deg,#a3aab3 0 55%,#9c6a3c 55%)'],
+    ['kujaku', 'Kujaku', 'linear-gradient(135deg,transparent 56%,#f28a2c 56%),repeating-linear-gradient(45deg,#eef0f2 0 3px,#2b2f3a 3px 4px)'],
+    ['hariwake', 'Hariwake', 'linear-gradient(135deg,#e7e9ec 0 50%,#f0b434 50%)'],
+    ['soragoi', 'Soragoi', '#8e98a4'],
+  ];
+  const PRESETS = {
+    all: TYPES.map((t) => t[0]),
+    gosanke: ['kohaku', 'showa'],
+    metallic: ['ogon', 'kujaku', 'hariwake'],
+  };
+  const typesBtn = document.querySelector('[data-action="types"]');
+  const typesPanel = document.getElementById('types-panel');
+  const typesList = typesPanel.querySelector('.tp-list');
+  const countInput = document.querySelector('[data-opt="count"]');
+  typesList.innerHTML = TYPES.map(([id, name, bg]) =>
+    `<li><label class="tp-item"><input type="checkbox" checked data-variety="${id}" />` +
+    `<span class="sw" style="background:${bg}"></span><span class="nm">${name}</span></label>` +
+    `<button class="tp-add" type="button" data-add="${id}" aria-label="Add one ${name}" title="Add one ${name}">+</button></li>`,
+  ).join('');
+  const boxes = [...typesList.querySelectorAll('[data-variety]')];
+  function applyTypes() {
+    const on = boxes.filter((b) => b.checked).map((b) => b.dataset.variety);
+    pond.set({ varieties: on.length === boxes.length ? 'all' : on });
+  }
+  boxes.forEach((box) =>
+    box.addEventListener('change', () => {
+      if (!boxes.some((b) => b.checked)) box.checked = true; // keep at least one type
+      applyTypes();
+    }),
+  );
+  typesPanel.querySelectorAll('[data-preset]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const keep = PRESETS[btn.dataset.preset];
+      boxes.forEach((b) => (b.checked = keep.includes(b.dataset.variety)));
+      applyTypes();
+    }),
+  );
+  typesList.querySelectorAll('[data-add]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      if (pond.fishes.length >= 60) return;
+      pond.addFish({ variety: btn.dataset.add });
+      countInput.max = Math.max(+countInput.max, pond.fishes.length);
+      countInput.value = pond.fishes.length;
+    }),
+  );
+  function openTypes(open) {
+    typesPanel.hidden = !open;
+    typesBtn.setAttribute('aria-expanded', String(open));
+    if (open) openPicker(false);
+  }
+  typesBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openTypes(typesPanel.hidden);
+  });
+  typesPanel.addEventListener('click', (e) => e.stopPropagation());
+  document.addEventListener('click', () => openTypes(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !typesPanel.hidden) {
+      openTypes(false);
+      typesBtn.focus();
+    }
+  });
+
   // --- Fish only: hide every page element and leave just the pond.
   const exitBtn = document.querySelector('[data-action="exit-fish-only"]');
   let idleTimer = 0;
@@ -99,6 +186,7 @@
   }
   function setFishOnly(on) {
     openPicker(false);
+    openTypes(false);
     document.documentElement.classList.toggle('fish-only', on);
     if (on) {
       showExit();

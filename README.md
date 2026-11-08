@@ -82,6 +82,7 @@ background colour, move it to `html` (or remove it) so the pond shows through.
 | `fishSize` | `'auto'` | Body length in CSS px; auto scales with the viewport. |
 | `fishScale` | `1` | Size multiplier for the fish (`0.5` = half, `2` = double). Changing it with `pond.set()` resizes the swimming fish smoothly. |
 | `butterfly` | `0` | Share of butterfly koi with long, flowing fins (`0.2` = about 1 in 5, `1` = all). |
+| `varieties` | `'all'` | Which koi swim: `'all'` or names like `['kohaku', 'showa', 'ogon']` (kohaku, showa, asagi, ogon, tancho, shiro-utsuri, hi-utsuri, ki-utsuri, shiro-bekko, ai-goromo, goshiki, shusui, kumonryu, ochiba, kujaku, hariwake, soragoi). |
 | `colors` | `'ink'` | `'ink'` for one ink colour, `'koi'` for real koi colours. |
 | `ink` | `'#1a42e2'` | Dot colour when `colors` is `'ink'` (hex or `rgb()`). |
 | `background` | `'auto'` | Light paper (`#eff5fd`) for ink, dark pond (`#0d2a30`) for koi colours; or any colour, or `'transparent'`. Both colour modes work on light and dark backgrounds; on light ones, white koi get a soft grey shading so they stay visible. |
@@ -97,7 +98,7 @@ background colour, move it to `html` (or remove it) so the pond shows through.
 | `zIndex` | `-1` | z-index of the full-page canvas. |
 | `seed` | `null` | A number gives the same pond every time. |
 
-Methods: `pond.set({...})`, `pond.pause()`, `pond.resume()`, `pond.destroy()`.
+Methods: `pond.set({...})`, `pond.addFish({ variety: 'kohaku', longFin: true })` (one koi swims in from the edge), `pond.pause()`, `pond.resume()`, `pond.destroy()`.
 
 ## How it works
 

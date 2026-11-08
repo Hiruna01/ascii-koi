@@ -103,7 +103,62 @@ function bodyHalfWidth(u) {
 function defaultFishSize(width, height) {
   return clamp(Math.min(width, height) * 0.13, 52, 128);
 }
-function createFish(rng, bounds, size, butterfly = 0) {
+var VARIETY_NAMES = Object.freeze([
+  "kohaku",
+  "showa",
+  "asagi",
+  "ogon",
+  "tancho",
+  "shiro-utsuri",
+  "hi-utsuri",
+  "ki-utsuri",
+  "shiro-bekko",
+  "ai-goromo",
+  "goshiki",
+  "shusui",
+  "kumonryu",
+  "ochiba",
+  "kujaku",
+  "hariwake",
+  "soragoi"
+]);
+function resolveVarieties(list) {
+  if (list == null || list === "all") return null;
+  const items = Array.isArray(list) ? list : String(list).split(",");
+  const ids = [];
+  for (const item of items) {
+    const id = typeof item === "number" ? item : VARIETY_NAMES.indexOf(String(item).trim().toLowerCase());
+    if (id >= 0 && id < VARIETY_NAMES.length && !ids.includes(id)) ids.push(id);
+  }
+  return ids.length ? ids : null;
+}
+function pickVariety(roll, allowed = null) {
+  const ids = allowed || VARIETY_NAMES.map((_, i) => i);
+  let total = 0;
+  for (const id of ids) total += VARIETY_WEIGHTS[id];
+  let r = roll * total;
+  for (const id of ids) {
+    r -= VARIETY_WEIGHTS[id];
+    if (r < 0) return id;
+  }
+  return ids[ids.length - 1];
+}
+function enterFromEdge(fish, bounds, rng) {
+  const side = Math.floor(rng() * 4);
+  const t = 0.15 + rng() * 0.7;
+  const out2 = fish.length * 0.4;
+  const x = side === 0 ? -out2 : side === 1 ? bounds.width + out2 : bounds.width * t;
+  const y = side === 2 ? -out2 : side === 3 ? bounds.height + out2 : bounds.height * t;
+  const angle = Math.atan2(bounds.height / 2 - y, bounds.width / 2 - x) + (rng() - 0.5) * 0.8;
+  for (let i = 0; i <= SPINE_SEGMENTS; i++) {
+    fish.spine[i * 2] = x - Math.cos(angle) * fish.segLen * i;
+    fish.spine[i * 2 + 1] = y - Math.sin(angle) * fish.segLen * i;
+  }
+  fish.angle = angle;
+  fish.heading = angle;
+  fish.decide = 2 + rng() * 2;
+}
+function createFish(rng, bounds, size, butterfly = 0, allowed = null) {
   const length = size * (0.8 + rng() * 0.38);
   const baseSpeed = length * (0.3 + rng() * 0.2);
   const segLen = length / SPINE_SEGMENTS;
@@ -116,13 +171,9 @@ function createFish(rng, bounds, size, butterfly = 0) {
     spine[i * 2] = x - Math.cos(angle) * segLen * i;
     spine[i * 2 + 1] = y - Math.sin(angle) * segLen * i;
   }
-  let pick = rng();
+  const varRoll = rng();
   const finRoll = rng();
-  let variety = 0;
-  while (variety < VARIETY_WEIGHTS.length - 1 && pick >= VARIETY_WEIGHTS[variety]) {
-    pick -= VARIETY_WEIGHTS[variety];
-    variety++;
-  }
+  const variety = pickVariety(varRoll, allowed);
   return {
     spine,
     length,
@@ -162,7 +213,11 @@ function createFish(rng, bounds, size, butterfly = 0) {
     seed: rng(),
     depth: rng() < 0.3 ? 0.45 + rng() * 0.4 : rng() * 0.25,
     // deeper fish are paler
-    variety
+    variety,
+    varRoll,
+    // fixed per fish: picks the variety among the allowed ones
+    pinned: false
+    // true for fish added with a chosen variety
   };
 }
 function hitTest(fish, px2, py2, pad = 6) {
@@ -974,6 +1029,8 @@ var DEFAULTS = Object.freeze({
   // size multiplier on top of fishSize (0.5 = half, 2 = double); changes resize fish live
   butterfly: 0,
   // share of butterfly koi with long, flowing fins (0 = none, 0.2 = about 1 in 5, 1 = all)
+  varieties: "all",
+  // which koi varieties swim: 'all', or names like ['kohaku', 'showa', 'ogon'] (see VARIETY_NAMES)
   colors: "ink",
   // 'ink' = single ink colour, 'koi' = real koi colours (red, black, white, gold...)
   ink: "#1a42e2",
@@ -1111,7 +1168,8 @@ function createKoiPond(options = {}) {
   function syncFishCount() {
     const n = Math.max(0, Math.floor(opts.count));
     const size = fishSize();
-    while (fishes.length < n) fishes.push(createFish(rng, bounds, size, +opts.butterfly || 0));
+    const allowed = resolveVarieties(opts.varieties);
+    while (fishes.length < n) fishes.push(createFish(rng, bounds, size, +opts.butterfly || 0, allowed));
     if (fishes.length > n) fishes.length = n;
     const need = n * VERTICES_PER_FISH * FLOATS_PER_VERTEX;
     if (vertices.length < need) vertices = new Float32Array(need);
@@ -1256,6 +1314,28 @@ function createKoiPond(options = {}) {
   }
   const api = {
     canvas,
+    /**
+     * Add one koi that swims in from the edge. Options: { variety: 'kohaku' | id,
+     * longFin: true/false }. Returns the new fish.
+     */
+    addFish(o2 = {}) {
+      const f = createFish(rng, bounds, fishSize(), +opts.butterfly || 0, resolveVarieties(opts.varieties));
+      if (o2.variety != null) {
+        const id = resolveVarieties([o2.variety]);
+        if (id) {
+          f.variety = id[0];
+          f.pinned = true;
+        }
+      }
+      if (o2.longFin != null) f.longFin = !!o2.longFin;
+      enterFromEdge(f, bounds, rng);
+      fishes.push(f);
+      opts.count = fishes.length;
+      const need = fishes.length * VERTICES_PER_FISH * FLOATS_PER_VERTEX;
+      if (vertices.length < need) vertices = new Float32Array(need * 1.5);
+      if (!running) draw();
+      return f;
+    },
     get fishes() {
       return fishes;
     },
@@ -1278,6 +1358,10 @@ function createKoiPond(options = {}) {
       }
       if ("count" in partial) syncFishCount();
       if ("butterfly" in partial) for (const f of fishes) f.longFin = f.finRoll < (+opts.butterfly || 0);
+      if ("varieties" in partial) {
+        const allowed = resolveVarieties(opts.varieties);
+        for (const f of fishes) if (!f.pinned) f.variety = pickVariety(f.varRoll, allowed);
+      }
       if (!running) draw();
       return api;
     },
@@ -1324,6 +1408,7 @@ export {
   DEFAULTS,
   PAPER,
   POND,
+  VARIETY_NAMES,
   backgroundLightness,
   createKoiPond,
   index_default as default,

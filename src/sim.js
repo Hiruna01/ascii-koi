@@ -121,7 +121,59 @@ export function defaultFishSize(width, height) {
   return clamp(Math.min(width, height) * 0.13, 52, 128);
 }
 
-export function createFish(rng, bounds, size, butterfly = 0) {
+// Names for the varieties option, in VARIETIES order.
+export const VARIETY_NAMES = Object.freeze([
+  'kohaku', 'showa', 'asagi', 'ogon', 'tancho',
+  'shiro-utsuri', 'hi-utsuri', 'ki-utsuri', 'shiro-bekko', 'ai-goromo', 'goshiki',
+  'shusui', 'kumonryu', 'ochiba', 'kujaku', 'hariwake', 'soragoi',
+]);
+
+/**
+ * Turn a varieties option ('all', 'kohaku,showa', ['kohaku', 3], ...) into a
+ * list of variety ids, or null for all of them. Unknown names are ignored.
+ */
+export function resolveVarieties(list) {
+  if (list == null || list === 'all') return null;
+  const items = Array.isArray(list) ? list : String(list).split(',');
+  const ids = [];
+  for (const item of items) {
+    const id = typeof item === 'number' ? item : VARIETY_NAMES.indexOf(String(item).trim().toLowerCase());
+    if (id >= 0 && id < VARIETY_NAMES.length && !ids.includes(id)) ids.push(id);
+  }
+  return ids.length ? ids : null;
+}
+
+/** Pick a variety from a fixed per-fish roll (0..1), weighted, among the allowed ones. */
+export function pickVariety(roll, allowed = null) {
+  const ids = allowed || VARIETY_NAMES.map((_, i) => i);
+  let total = 0;
+  for (const id of ids) total += VARIETY_WEIGHTS[id];
+  let r = roll * total;
+  for (const id of ids) {
+    r -= VARIETY_WEIGHTS[id];
+    if (r < 0) return id;
+  }
+  return ids[ids.length - 1];
+}
+
+/** Move a fish just outside a random edge of the pond, facing in, so it swims into view. */
+export function enterFromEdge(fish, bounds, rng) {
+  const side = Math.floor(rng() * 4);
+  const t = 0.15 + rng() * 0.7;
+  const out = fish.length * 0.4;
+  const x = side === 0 ? -out : side === 1 ? bounds.width + out : bounds.width * t;
+  const y = side === 2 ? -out : side === 3 ? bounds.height + out : bounds.height * t;
+  const angle = Math.atan2(bounds.height / 2 - y, bounds.width / 2 - x) + (rng() - 0.5) * 0.8;
+  for (let i = 0; i <= SPINE_SEGMENTS; i++) {
+    fish.spine[i * 2] = x - Math.cos(angle) * fish.segLen * i;
+    fish.spine[i * 2 + 1] = y - Math.sin(angle) * fish.segLen * i;
+  }
+  fish.angle = angle;
+  fish.heading = angle;
+  fish.decide = 2 + rng() * 2;
+}
+
+export function createFish(rng, bounds, size, butterfly = 0, allowed = null) {
   const length = size * (0.8 + rng() * 0.38);
   const baseSpeed = length * (0.3 + rng() * 0.2); // body lengths per second
   const segLen = length / SPINE_SEGMENTS;
@@ -135,13 +187,9 @@ export function createFish(rng, bounds, size, butterfly = 0) {
     spine[i * 2 + 1] = y - Math.sin(angle) * segLen * i;
   }
 
-  let pick = rng();
+  const varRoll = rng();
   const finRoll = rng();
-  let variety = 0;
-  while (variety < VARIETY_WEIGHTS.length - 1 && pick >= VARIETY_WEIGHTS[variety]) {
-    pick -= VARIETY_WEIGHTS[variety];
-    variety++;
-  }
+  const variety = pickVariety(varRoll, allowed);
 
   return {
     spine,
@@ -167,6 +215,8 @@ export function createFish(rng, bounds, size, butterfly = 0) {
     seed: rng(),
     depth: rng() < 0.3 ? 0.45 + rng() * 0.4 : rng() * 0.25, // deeper fish are paler
     variety,
+    varRoll, // fixed per fish: picks the variety among the allowed ones
+    pinned: false, // true for fish added with a chosen variety
   };
 }
 

@@ -126,6 +126,7 @@ pond.destroy();</code></pre>
             <tr><td><code>fishSize</code></td><td><code>'auto'</code></td><td>Body length in CSS pixels. Auto scales with the viewport.</td></tr>
             <tr><td><code>fishScale</code></td><td><code>1</code></td><td>Size multiplier for the fish (<code>0.5</code> = half, <code>2</code> = double). Changing it with <code>pond.set()</code> resizes the swimming fish smoothly.</td></tr>
             <tr><td><code>butterfly</code></td><td><code>0</code></td><td>Share of butterfly koi with long, flowing fins: <code>0.2</code> is about 1 in 5, <code>1</code> is all of them.</td></tr>
+            <tr><td><code>varieties</code></td><td><code>'all'</code></td><td>Which koi swim: <code>'all'</code>, or names like <code>['kohaku', 'showa', 'ogon']</code>. Names: kohaku, showa, asagi, ogon, tancho, shiro-utsuri, hi-utsuri, ki-utsuri, shiro-bekko, ai-goromo, goshiki, shusui, kumonryu, ochiba, kujaku, hariwake, soragoi.</td></tr>
             <tr><td><code>colors</code></td><td><code>'ink'</code></td><td><code>'ink'</code> for one ink colour, or <code>'koi'</code> for real koi colours: red, black and white Kohaku, Sanke and Showa, Tancho, blue-grey Asagi, metallic gold and platinum Ogon, brown Chagoi.</td></tr>
             <tr><td><code>ink</code></td><td><code>'#1a42e2'</code></td><td>Dot colour when <code>colors</code> is <code>'ink'</code> (hex or <code>rgb()</code>).</td></tr>
             <tr><td><code>background</code></td><td><code>'auto'</code></td><td>Light paper (<code>#eff5fd</code>) for ink, dark pond water (<code>#0d2a30</code>) for real koi colours. Or any colour, or <code>'transparent'</code>. Both colour modes work on light and dark backgrounds.</td></tr>
@@ -146,6 +147,7 @@ pond.destroy();</code></pre>
       <h3 class="api-h">Methods</h3>
       <ul class="api">
         <li><code>pond.set({ … })</code> change any option while it runs</li>
+        <li><code>pond.addFish({ variety: 'kohaku', longFin: true })</code> add one koi that swims in from the edge</li>
         <li><code>pond.pause()</code> / <code>pond.resume()</code></li>
         <li><code>pond.destroy()</code> stop and remove the canvas</li>
       </ul>
@@ -167,6 +169,12 @@ pond.destroy();</code></pre>
     <button class="icon" type="button" data-action="fish-only" aria-label="Show only the fish" title="Show only the fish (Esc to exit)">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
+    <button class="icon" type="button" data-action="butterfly" aria-pressed="false" aria-label="Butterfly koi (long fins)" title="Butterfly koi: long, flowing fins">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 8.5C6.6 4.2 2.6 2.4 1.8 4.6 1.2 6.3 3.4 8.1 8 8.5Zm0 0c-3.8.6-5.6 2.3-4.8 3.9.9 1.7 3.6.2 4.8-3.9Zm0 0c1.4-4.3 5.4-6.1 6.2-3.9.6 1.7-1.6 3.5-6.2 3.9Zm0 0c3.8.6 5.6 2.3 4.8 3.9-.9 1.7-3.6.2-4.8-3.9Z"/></svg>
+    </button>
+    <button class="icon" type="button" data-action="types" aria-label="Koi types" title="Koi types: choose which koi swim, add fish" aria-haspopup="dialog" aria-expanded="false" aria-controls="types-panel">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8c2-3.2 6.2-4.3 9.3-1.6L14.5 4v8l-3.7-2.4C7.7 12.3 3.5 11.2 1.5 8Z"/><circle cx="4.6" cy="7.4" r=".9" fill="var(--dock-bg, #fff)"/></svg>
+    </button>
     <span class="sep" aria-hidden="true"></span>
     <div class="seg" role="radiogroup" aria-label="Fish colours">
       <button type="button" role="radio" aria-checked="true" data-colors="ink">Blue</button>
@@ -184,7 +192,7 @@ pond.destroy();</code></pre>
       <input type="range" min="1" max="4" step="0.5" value="2" data-opt="pixelSize" />
     </label>
     <label class="range">Fish
-      <input type="range" min="1" max="24" step="1" value="10" data-opt="count" />
+      <input type="range" min="1" max="40" step="1" value="10" data-opt="count" />
     </label>
     <label class="range">Size
       <input type="range" min="0.5" max="2" step="0.05" value="1" data-opt="fishScale" />
@@ -205,6 +213,19 @@ pond.destroy();</code></pre>
       <button type="button" class="swatch" data-bg="#111111" style="--c:#111111" aria-pressed="false" title="Ink black" aria-label="Ink black"></button>
     </div>
     <label class="custom">Custom colour <input type="color" value="#eff5fd" data-bg-custom /></label>
+  </div>
+
+  <div class="types-panel" id="types-panel" role="dialog" aria-label="Koi types" hidden>
+    <div class="tp-head">
+      <p class="bg-title">Koi types</p>
+      <div class="tp-presets">
+        <button type="button" data-preset="all">All</button>
+        <button type="button" data-preset="gosanke">Gosanke</button>
+        <button type="button" data-preset="metallic">Metallic</button>
+      </div>
+    </div>
+    <p class="tp-hint">Tick the types that swim in the pond. Press + to add one fish of that type.</p>
+    <ul class="tp-list"></ul>
   </div>
 
   <button class="exit-view" type="button" data-action="exit-fish-only" aria-label="Back to the page">
