@@ -18,23 +18,33 @@
       <a href="#install">Install</a>
       <a href="#how">How it works</a>
       <a href="#options">Options</a>
-      <a href="https://github.com/Hiruna01/ascii-koi">GitHub</a>
+      <a class="gh" href="https://github.com/Hiruna01/ascii-koi">GitHub</a>
     </nav>
   </header>
 
   <main id="top">
     <section class="hero">
-      <p class="eyebrow">WebGL2 dither shader &middot; 10 KB gzipped &middot; no dependencies</p>
-      <h1>A koi pond for your website background.</h1>
-      <p class="lede">
-        Koi made of ordered-dither dots swim quietly behind your content.
-        Point at a fish and it darts away. Add it to any site with one script tag.
-      </p>
+      <a class="badge" href="#install">
+        <span class="badge-dot" aria-hidden="true"></span>
+        New: real koi colours on any background
+        <span class="badge-arrow" aria-hidden="true">&rarr;</span>
+      </a>
+      <h1>A <em>koi pond</em> for your website background.</h1>
+      <p class="lede">Dithered koi swim quietly behind your content. Point at one and it darts&nbsp;away.</p>
       <div class="cta">
-        <a class="btn primary" href="#install">Add it to your site</a>
-        <a class="btn" href="koi-pond.min.js" download>Download koi-pond.min.js</a>
+        <a class="btn primary" href="#install">Add it to your site <span aria-hidden="true">&rarr;</span></a>
+        <button class="snippet" type="button" aria-label="Copy the script tag"
+          data-copy='&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond&gt;&lt;/script&gt;'>
+          <code><span class="tok">&lt;script</span> data-koi-pond<span class="tok">&gt;</span></code>
+          <span class="snippet-copy">Copy</span>
+        </button>
       </div>
-      <p class="hint"><span class="cursor" aria-hidden="true"></span>Try it: put your pointer on a fish.</p>
+      <ul class="meta" aria-label="Highlights">
+        <li>WebGL2</li>
+        <li>10 KB gzipped</li>
+        <li>No dependencies</li>
+        <li>MIT</li>
+      </ul>
     </section>
 
     <section id="install" class="panel">

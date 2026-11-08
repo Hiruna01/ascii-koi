@@ -139,6 +139,21 @@
     }),
   );
 
+  // --- Hero snippet: copies the one-line CDN script tag.
+  const snippet = document.querySelector('.snippet');
+  if (snippet) {
+    const label = snippet.querySelector('.snippet-copy');
+    snippet.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(snippet.dataset.copy);
+        label.textContent = 'Copied';
+      } catch {
+        label.textContent = 'See Install';
+      }
+      setTimeout(() => (label.textContent = 'Copy'), 1600);
+    });
+  }
+
   // --- Copy buttons
   document.querySelectorAll('.copy').forEach((btn) =>
     btn.addEventListener('click', async () => {
