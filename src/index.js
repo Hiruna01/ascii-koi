@@ -22,6 +22,7 @@ export const DEFAULTS = Object.freeze({
   ink: '#1a42e2', // dot colour
   background: '#eff5fd', // paper colour, or 'transparent'
   mode: 'bayer', // 'bayer' | 'lines'
+  tones: 4, // shades of ink between paper and full ink (1 = single colour, max 8)
   pixelSize: 1.5, // size of one dot in CSS px
   speed: 1, // swimming speed multiplier
   dartBoost: 3.5, // extra speed while darting (3.5 = 4.5x normal)
@@ -52,6 +53,17 @@ function parseColor(c) {
     return [((n >>> 24) & 255) / 255, ((n >>> 16) & 255) / 255, ((n >>> 8) & 255) / 255, (n & 255) / 255];
   }
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, 1];
+}
+
+/**
+ * Ink amount of each palette tone for `n` shades of ink, starting with paper (0).
+ * For 4 tones this gives about 0.31, 0.55, 0.78, 1: pale, light, mid and deep blue.
+ */
+export function toneStops(n) {
+  const count = Math.max(1, Math.min(8, Math.round(n) || 1));
+  const stops = [0];
+  for (let i = 1; i <= count; i++) stops.push(Math.pow(i / count, 0.85));
+  return stops;
 }
 
 function resolveTarget(t) {
@@ -188,6 +200,7 @@ export function createKoiPond(options = {}) {
       mode: opts.mode === 'lines' ? 1 : 0,
       ink: ink.slice(0, 3),
       bg,
+      stops: toneStops(opts.tones),
     });
   }
 

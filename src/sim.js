@@ -9,7 +9,11 @@
 // fish darts (a short burst of speed that fades out). Nothing else.
 
 export const TAU = Math.PI * 2;
-export const SPINE_SEGMENTS = 14;
+export const SPINE_SEGMENTS = 16;
+
+// Koi varieties (colour patterns), interpreted by the scene shader.
+export const VARIETIES = Object.freeze({ KOHAKU: 0, SHOWA: 1, ASAGI: 2, SOLID: 3, TANCHO: 4 });
+const VARIETY_WEIGHTS = [0.3, 0.24, 0.18, 0.16, 0.12];
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -44,9 +48,10 @@ export function angleDiff(to, from) {
  * the spine, u = 0 at the nose, u = 1 at the root of the tail.
  */
 export function bodyHalfWidth(u) {
-  const nose = Math.sqrt(clamp(u / 0.2, 0, 1)); // rounded head
-  const taper = 1 - 0.68 * smoothstep(0.34, 1, u); // slim towards the tail
-  return 0.13 * nose * taper;
+  // Blunt, rounded head; widest around a third of the way back; slim tail stem.
+  const nose = Math.pow(clamp(u / 0.16, 0, 1), 0.42);
+  const taper = 1 - 0.8 * Math.pow(smoothstep(0.34, 1, u), 0.9);
+  return 0.17 * nose * taper;
 }
 
 /** Default fish length for a viewport, in CSS pixels. */
@@ -67,9 +72,12 @@ export function createFish(rng, bounds, size) {
     spine[i * 2 + 1] = y - Math.sin(angle) * segLen * i;
   }
 
-  // Pattern: roughly a third solid, the rest with white patches of varying size.
-  const r = rng();
-  const patch = r < 0.33 ? 2 : 0.52 + rng() * 0.18; // >1 means "no patches"
+  let pick = rng();
+  let variety = 0;
+  while (variety < VARIETY_WEIGHTS.length - 1 && pick >= VARIETY_WEIGHTS[variety]) {
+    pick -= VARIETY_WEIGHTS[variety];
+    variety++;
+  }
 
   return {
     spine,
@@ -85,7 +93,7 @@ export function createFish(rng, bounds, size) {
     wander: rng() * 1000,
     seed: rng(),
     depth: rng() < 0.3 ? 0.45 + rng() * 0.4 : rng() * 0.25, // deeper fish are paler
-    patch,
+    variety,
   };
 }
 
@@ -130,9 +138,9 @@ export function stepFish(fish, dt, time, opts) {
   // --- Wander: smooth pseudo-random turning from a sum of sines.
   const w = fish.wander;
   let turn =
-    0.55 * Math.sin(time * 0.31 + w) +
-    0.35 * Math.sin(time * 0.73 + w * 1.7) +
-    0.2 * Math.sin(time * 1.37 + w * 2.3);
+    0.7 * Math.sin(time * 0.31 + w) +
+    0.45 * Math.sin(time * 0.73 + w * 1.7) +
+    0.25 * Math.sin(time * 1.37 + w * 2.3);
 
   // --- Stay inside the bounds: steer towards the centre near the edges.
   const margin = Math.max(fish.length * 1.1, 60);

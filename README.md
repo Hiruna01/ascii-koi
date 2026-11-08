@@ -3,8 +3,9 @@
 A dithered koi pond for your website background. Koi made of ordered-dither dots
 swim behind your content; put your pointer on a fish and it darts away.
 
-- WebGL2, no dependencies, about 8 KB gzipped
-- Bayer dot or line-screen dithering
+- WebGL2, no dependencies, about 9 KB gzipped
+- Multi-tone Bayer dot or line-screen dithering (paper, pale, light, mid and deep ink)
+- Five koi varieties with markings, scales, eyes and translucent fins
 - Works as a full-page background or inside a single element
 - Page stays clickable (the canvas ignores pointer events and only reads the pointer position)
 - Pauses in background tabs, slows down for `prefers-reduced-motion`
@@ -61,6 +62,7 @@ background colour, move it to `html` (or remove it) so the pond shows through.
 | `ink` | `'#1a42e2'` | Dot colour (hex or `rgb()`). |
 | `background` | `'#eff5fd'` | Paper colour, or `'transparent'`. |
 | `mode` | `'bayer'` | `'bayer'` or `'lines'`. |
+| `tones` | `4` | Shades of ink between paper and full ink; `1` gives single-colour dots. |
 | `pixelSize` | `1.5` | Size of one dot in CSS px. |
 | `speed` | `1` | Swimming speed multiplier. |
 | `dartBoost` | `3.5` | Extra speed while darting (3.5 means 4.5x normal). |
@@ -80,8 +82,9 @@ Methods: `pond.set({...})`, `pond.pause()`, `pond.resume()`, `pond.destroy()`.
    When the pointer is on a fish's body, that fish gets a burst of speed.
 2. **Shade** (`src/geometry.js`, scene pass): fish are drawn as soft grey "ink
    amounts" into a small texture with one texel per output dot.
-3. **Dither** (`src/renderer.js`, dither pass): each dot compares its ink amount with
-   an 8x8 Bayer threshold (or a line screen) and becomes ink or paper.
+3. **Dither** (`src/renderer.js`, dither pass): each dot's ink amount falls between two
+   palette tones (mixes of `background` and `ink`); an 8x8 Bayer threshold (or a line
+   screen) picks which of the two the dot gets.
 
 ## Develop
 

@@ -3,8 +3,9 @@
 // Pass 1 (scene): fish are drawn as soft grayscale "ink amount" (0 = paper,
 // 1 = full ink) into a small R8 texture with one texel per output dot.
 // Pass 2 (dither): every screen pixel finds its dot, reads the ink amount and
-// compares it with an ordered-dither threshold (8x8 Bayer matrix, or a line
-// screen). Above the threshold the dot is ink, otherwise it is background.
+// picks one of a few palette tones (paper, pale, light, mid, deep ink). Between
+// two tones, an ordered-dither threshold (8x8 Bayer matrix, or a line screen)
+// decides which of the two the dot gets.
 
 const SCENE_VS = `#version 300 es
 layout(location = 0) in vec2 a_pos;
@@ -38,12 +39,19 @@ float vnoise(vec2 p) {
   return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
              mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
+// Patches: blobs that stretch across the back, like real koi markings.
+float blobs(vec2 p) {
+  return vnoise(p) * 0.62 + vnoise(p * 2.1 + 3.1) * 0.27 + vnoise(p * 4.7 + 7.7) * 0.11;
+}
+
+const float WHITE = 0.25;   // "white" skin: a fill of the palest dots
+const float RIM = 0.44;     // the outline around every fish, a step darker than white skin
 
 void main() {
   float kind = v_meta.x;
   float seed = v_meta.y;
   float depth = v_meta.z;
-  float patchTh = v_meta.w;
+  float variety = v_meta.w;
   float u = v_uv.x;
   float v = v_uv.y;
   float av = abs(v);
@@ -51,38 +59,75 @@ void main() {
   float a;
 
   if (kind < 0.5) {
-    // Body: dense in the middle, softer towards the edges.
-    a = 1.0 - smoothstep(0.6, 1.0, av);
-    ink = 0.98 - 0.32 * av * av + 0.05 * (1.0 - u);
-    // White patches from low-frequency noise in fish space (they move with the body).
-    float n = vnoise(vec2(u * 3.4, v * 1.1) + seed * 91.7) * 0.72
-            + vnoise(vec2(u * 8.0, v * 2.4) + seed * 13.1) * 0.28;
-    float p = smoothstep(patchTh - 0.05, patchTh + 0.05, n);
-    p *= 1.0 - smoothstep(0.7, 0.92, u); // keep the tail end coloured
-    // White patches keep a faint fill and a dotted outline so the fish stays readable.
-    float rim = smoothstep(0.45, 0.85, av);
-    ink = mix(ink, mix(0.16, 0.6, rim), p);
-    // Fade a little where the body meets the tail fin.
-    ink *= mix(1.0, 0.72, smoothstep(0.82, 1.0, u));
+    // ---------- Body ----------
+    a = 1.0 - smoothstep(0.9, 1.0, av);
+    float edge = smoothstep(0.62, 0.97, av);        // 0 along the spine, 1 at the rim
+    float ridge = 1.0 - smoothstep(0.0, 0.38, av);  // darker line down the back
+
+    vec2 sd = seed * vec2(37.1, 11.7);
+    float n = blobs(vec2(u * 2.7, v * 0.7) + sd);
+    float n2 = blobs(vec2(u * 3.9, v * 0.9) + sd.yx * 1.7);
+
+    // Scales: an offset grid of small rounded cells along the body.
+    vec2 sc = vec2(u * 13.0, v * 2.3);
+    sc.y += 0.5 * mod(floor(sc.x), 2.0);
+    float scaleRim = smoothstep(0.24, 0.5, length((fract(sc) - 0.5) * vec2(1.0, 1.2)));
+
+    float base;
+    if (variety < 0.5) {
+      // Kohaku: white body with large deep patches.
+      base = mix(WHITE, 0.97, smoothstep(0.47, 0.505, n));
+    } else if (variety < 1.5) {
+      // Showa: deep body broken by white and mid-tone patches.
+      base = mix(0.97, 0.6, smoothstep(0.55, 0.58, n2));
+      base = mix(base, WHITE, smoothstep(0.58, 0.61, n));
+    } else if (variety < 2.5) {
+      // Asagi: mid-tone body with a net of lighter scale edges and a darker back.
+      base = 0.6 + 0.2 * ridge - 0.16 * scaleRim * (1.0 - ridge * 0.6);
+    } else if (variety < 3.5) {
+      // Solid: deep all over, scales just catching the light.
+      base = 0.93 - 0.12 * scaleRim * (1.0 - ridge);
+    } else {
+      // Tancho-like: white with a deep spot on the head and a few small marks.
+      float head = 1.0 - smoothstep(0.7, 1.0, length(vec2((u - 0.14) * 9.0, v * 1.9)));
+      float marks = smoothstep(0.62, 0.65, n);
+      base = mix(WHITE, 0.95, max(head, marks));
+    }
+
+    // White skin shows a faint scale texture too.
+    float isWhite = 1.0 - smoothstep(WHITE, WHITE + 0.2, base);
+    base += isWhite * 0.05 * (1.0 - scaleRim);
+
+    ink = base + 0.05 * ridge;
+    // Pale outline: dark areas fade to the rim tone, white areas gain it.
+    ink = mix(ink, RIM, edge * 0.8);
+    // Snout and tail stem are a touch lighter, so the head reads rounded.
+    ink = mix(ink, min(ink, 0.55), (1.0 - smoothstep(0.0, 0.06, u)) * 0.7);
+    ink = mix(ink, 0.5, smoothstep(0.88, 1.0, u) * 0.6);
+
+    // Eyes: tiny dark points on each side of the head.
+    float eye = 1.0 - smoothstep(0.012, 0.022, length(vec2(u - 0.085, (av - 0.62) * 0.13)));
+    ink = mix(ink, 1.0, eye);
   } else if (kind < 1.5) {
-    // Tail fin: translucent, streaky, forked at the end.
-    float cut = (u - 0.5) * 1.25;
-    float notch = cut > 0.0 ? 1.0 - smoothstep(cut - 0.14, cut, av) : 0.0;
-    float edge = 1.0 - smoothstep(0.62, 1.0, av);
-    float tip = 1.0 - smoothstep(0.8, 1.0, u);
+    // ---------- Tail fin: big, pale and forked, with fin rays ----------
+    float cut = (u - 0.5) * 0.85;
+    float notch = cut > 0.0 ? 1.0 - smoothstep(cut - 0.16, cut + 0.02, av) : 0.0;
+    float edge = 1.0 - smoothstep(0.72, 1.0, av);
+    float tip = 1.0 - smoothstep(0.78, 1.0, u + 0.18 * (1.0 - av));
     a = edge * tip * (1.0 - notch);
-    float streak = 0.7 + 0.3 * sin(v * 11.0 + seed * 20.0);
-    ink = 0.58 * streak * (1.0 - 0.35 * u);
+    float rays = 0.85 + 0.15 * sin(v * 15.0 + seed * 20.0);
+    ink = mix(0.42, 0.15, smoothstep(0.0, 0.5, u)) * rays;
   } else {
-    // Pectoral fin: a translucent teardrop.
-    float w = pow(sin(3.14159 * clamp(u * 0.85 + 0.15, 0.0, 1.0)), 0.7);
-    float r = av / max(w, 1e-3);
-    a = 1.0 - smoothstep(0.55, 1.0, r);
-    ink = 0.36 * (1.0 - 0.45 * u);
+    // ---------- Paired fins: translucent rounded fans with rays ----------
+    float r = length(vec2((u - 0.55) / 0.5, v / (0.3 + 0.7 * u)));
+    a = 1.0 - smoothstep(0.62, 1.0, r);
+    float rays = 0.88 + 0.12 * sin(v * 10.0 + u * 3.0);
+    ink = mix(0.3, 0.13, u) * rays;
   }
 
-  ink *= mix(1.0, 0.55, depth);
-  o = vec4(ink, 0.0, 0.0, a);
+  // Deeper fish are paler.
+  ink *= mix(1.0, 0.6, depth);
+  o = vec4(clamp(ink, 0.0, 1.0), 0.0, 0.0, a);
 }`;
 
 const DITHER_VS = `#version 300 es
@@ -101,6 +146,8 @@ uniform float u_dot;
 uniform int u_mode;
 uniform vec3 u_ink;
 uniform vec4 u_bg;
+uniform float u_stops[9]; // ink amount of each palette tone, u_stops[0] = 0 (paper)
+uniform int u_count;      // number of tones including paper
 out vec4 o;
 
 float bayer8(ivec2 p) {
@@ -128,9 +175,22 @@ void main() {
   } else {
     th = b;
   }
-  float on = k > th ? 1.0 : 0.0;
-  vec4 bg = vec4(u_bg.rgb * u_bg.a, u_bg.a);
-  o = mix(bg, vec4(u_ink, 1.0), on);
+  // Ordered dither between the two palette tones around k.
+  int i = 0;
+  for (int j = 1; j < 9; j++) {
+    if (j >= u_count) break;
+    if (k >= u_stops[j]) i = j;
+  }
+  float tone;
+  if (i >= u_count - 1) {
+    tone = u_stops[u_count - 1];
+  } else {
+    float lo = u_stops[i];
+    float hi = u_stops[i + 1];
+    tone = (k - lo) / (hi - lo) > th ? hi : lo;
+  }
+  vec3 bgP = u_bg.rgb * u_bg.a; // premultiplied
+  o = vec4(mix(bgP, u_ink, tone), mix(u_bg.a, 1.0, tone));
 }`;
 
 function compile(gl, type, src) {
@@ -171,7 +231,10 @@ export function createRenderer(gl) {
     mode: gl.getUniformLocation(ditherProg, 'u_mode'),
     ink: gl.getUniformLocation(ditherProg, 'u_ink'),
     bg: gl.getUniformLocation(ditherProg, 'u_bg'),
+    stops: gl.getUniformLocation(ditherProg, 'u_stops'),
+    count: gl.getUniformLocation(ditherProg, 'u_count'),
   };
+  const stopBuf = new Float32Array(9);
 
   const vao = gl.createVertexArray();
   const vbo = gl.createBuffer();
@@ -212,7 +275,8 @@ export function createRenderer(gl) {
   return {
     /**
      * frame: { canvasW, canvasH (device px), dot (device px per dot), cssPerDot,
-     *          vertices: Float32Array, count, mode: 0|1, ink:[r,g,b], bg:[r,g,b,a] }
+     *          vertices: Float32Array, count, mode: 0|1, ink:[r,g,b], bg:[r,g,b,a],
+     *          stops: [0, ..., 1] ink amount of each palette tone }
      */
     render(frame) {
       const sw = Math.max(1, Math.ceil(frame.canvasW / frame.dot));
@@ -248,6 +312,10 @@ export function createRenderer(gl) {
       gl.uniform1i(loc.mode, frame.mode);
       gl.uniform3fv(loc.ink, frame.ink);
       gl.uniform4fv(loc.bg, frame.bg);
+      stopBuf.fill(1);
+      stopBuf.set(frame.stops.slice(0, 9));
+      gl.uniform1fv(loc.stops, stopBuf);
+      gl.uniform1i(loc.count, Math.min(9, frame.stops.length));
       gl.bindVertexArray(emptyVao);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.bindVertexArray(null);

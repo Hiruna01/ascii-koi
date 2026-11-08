@@ -24,7 +24,7 @@
 
   <main id="top">
     <section class="hero">
-      <p class="eyebrow">WebGL2 dither shader &middot; 8 KB gzipped &middot; no dependencies</p>
+      <p class="eyebrow">WebGL2 dither shader &middot; 9 KB gzipped &middot; no dependencies</p>
       <h1>A koi pond for your website background.</h1>
       <p class="lede">
         Koi made of ordered-dither dots swim quietly behind your content.
@@ -94,12 +94,12 @@ pond.destroy();</code></pre>
         <li>
           <span class="step-n">02</span>
           <h3>Shade</h3>
-          <p>The fish are drawn into a tiny offscreen image as shades of grey, one pixel per dot. Bodies are dark, white patches and fins are light, edges are soft.</p>
+          <p>The fish are drawn into a tiny offscreen image as shades of grey, one pixel per dot: koi markings (kohaku, showa, asagi and more), scales, eyes, a pale outline and see-through fins.</p>
         </li>
         <li>
           <span class="step-n">03</span>
           <h3>Dither</h3>
-          <p>A shader compares each grey value with an 8&times;8 Bayer matrix. Darker than the threshold means a blue dot. Light greys become sparse dots, which gives fins their feathery look.</p>
+          <p>Each grey value falls between two of five tones: paper, pale, light, mid and deep blue. An 8&times;8 Bayer matrix decides which of the two each dot gets, so fins become sparse pale dots and markings stay solid.</p>
           <div class="bayer" aria-hidden="true"></div>
         </li>
       </ol>
@@ -119,6 +119,7 @@ pond.destroy();</code></pre>
             <tr><td><code>ink</code></td><td><code>'#1a42e2'</code></td><td>Dot colour (hex or <code>rgb()</code>).</td></tr>
             <tr><td><code>background</code></td><td><code>'#eff5fd'</code></td><td>Paper colour, or <code>'transparent'</code> to show your page behind the dots.</td></tr>
             <tr><td><code>mode</code></td><td><code>'bayer'</code></td><td><code>'bayer'</code> dots or <code>'lines'</code> line screen.</td></tr>
+            <tr><td><code>tones</code></td><td><code>4</code></td><td>Shades of ink between paper and full ink. <code>1</code> gives single-colour dots.</td></tr>
             <tr><td><code>pixelSize</code></td><td><code>1.5</code></td><td>Size of one dot in CSS pixels.</td></tr>
             <tr><td><code>speed</code></td><td><code>1</code></td><td>Swimming speed multiplier.</td></tr>
             <tr><td><code>dartBoost</code></td><td><code>3.5</code></td><td>Extra speed when a fish darts (3.5 means 4.5&times; normal).</td></tr>

@@ -2,7 +2,9 @@
 
 // src/sim.js
 var TAU = Math.PI * 2;
-var SPINE_SEGMENTS = 14;
+var SPINE_SEGMENTS = 16;
+var VARIETIES = Object.freeze({ KOHAKU: 0, SHOWA: 1, ASAGI: 2, SOLID: 3, TANCHO: 4 });
+var VARIETY_WEIGHTS = [0.3, 0.24, 0.18, 0.16, 0.12];
 function mulberry32(seed) {
   let a = seed >>> 0;
   return function() {
@@ -27,9 +29,9 @@ function angleDiff(to, from) {
   return d;
 }
 function bodyHalfWidth(u) {
-  const nose = Math.sqrt(clamp(u / 0.2, 0, 1));
-  const taper = 1 - 0.68 * smoothstep(0.34, 1, u);
-  return 0.13 * nose * taper;
+  const nose = Math.pow(clamp(u / 0.16, 0, 1), 0.42);
+  const taper = 1 - 0.8 * Math.pow(smoothstep(0.34, 1, u), 0.9);
+  return 0.17 * nose * taper;
 }
 function defaultFishSize(width, height) {
   return clamp(Math.min(width, height) * 0.115, 54, 120);
@@ -46,8 +48,12 @@ function createFish(rng, bounds, size) {
     spine[i * 2] = x - Math.cos(angle) * segLen * i;
     spine[i * 2 + 1] = y - Math.sin(angle) * segLen * i;
   }
-  const r = rng();
-  const patch = r < 0.33 ? 2 : 0.52 + rng() * 0.18;
+  let pick = rng();
+  let variety = 0;
+  while (variety < VARIETY_WEIGHTS.length - 1 && pick >= VARIETY_WEIGHTS[variety]) {
+    pick -= VARIETY_WEIGHTS[variety];
+    variety++;
+  }
   return {
     spine,
     length,
@@ -67,7 +73,7 @@ function createFish(rng, bounds, size) {
     seed: rng(),
     depth: rng() < 0.3 ? 0.45 + rng() * 0.4 : rng() * 0.25,
     // deeper fish are paler
-    patch
+    variety
   };
 }
 function hitTest(fish, px2, py2, pad = 6) {
@@ -100,7 +106,7 @@ function stepFish(fish, dt, time, opts) {
   const hx = s[0];
   const hy = s[1];
   const w = fish.wander;
-  let turn = 0.55 * Math.sin(time * 0.31 + w) + 0.35 * Math.sin(time * 0.73 + w * 1.7) + 0.2 * Math.sin(time * 1.37 + w * 2.3);
+  let turn = 0.7 * Math.sin(time * 0.31 + w) + 0.45 * Math.sin(time * 0.73 + w * 1.7) + 0.25 * Math.sin(time * 1.37 + w * 2.3);
   const margin = Math.max(fish.length * 1.1, 60);
   const ex = smoothstep(margin, 0, hx) - smoothstep(bounds.width - margin, bounds.width, hx);
   const ey = smoothstep(margin, 0, hy) - smoothstep(bounds.height - margin, bounds.height, hy);
@@ -175,8 +181,9 @@ function rescaleFishes(fishes, from, to) {
 
 // src/geometry.js
 var FLOATS_PER_VERTEX = 8;
-var TAIL_ROWS = 5;
-var VERTICES_PER_FISH = (SPINE_SEGMENTS + (TAIL_ROWS - 1) + 2) * 6;
+var TAIL_ROWS = 7;
+var FIN_COUNT = 4;
+var VERTICES_PER_FISH = (SPINE_SEGMENTS + (TAIL_ROWS - 1) + FIN_COUNT) * 6;
 var px = new Float32Array(SPINE_SEGMENTS + 1);
 var py = new Float32Array(SPINE_SEGMENTS + 1);
 var nx = new Float32Array(SPINE_SEGMENTS + 1);
@@ -191,7 +198,7 @@ function vert(x, y, u, v, kind, f) {
   out[o++] = kind;
   out[o++] = f.seed;
   out[o++] = f.depth;
-  out[o++] = f.patch;
+  out[o++] = f.variety;
 }
 function quad(alx, aly, arx, ary, blx, bly, brx, bry, ua, ub, kind, f) {
   vert(alx, aly, ua, -1, kind, f);
@@ -201,10 +208,44 @@ function quad(alx, aly, arx, ary, blx, bly, brx, bry, ua, ub, kind, f) {
   vert(brx, bry, ub, 1, kind, f);
   vert(blx, bly, ub, -1, kind, f);
 }
+function pairedFins(f, i, len, halfW, sweepBase, flapAmp, flapOffset) {
+  const L = f.length;
+  let tx = px[i - 1] - px[i + 1];
+  let ty = py[i - 1] - py[i + 1];
+  const tl = Math.hypot(tx, ty) || 1;
+  tx /= tl;
+  ty /= tl;
+  const hw = bodyHalfWidth(i / SPINE_SEGMENTS) * L;
+  for (const side of [-1, 1]) {
+    const sweep = sweepBase + 0.45 * f.burst + flapAmp * Math.sin(f.phase * 0.55 + side * 1.3 + flapOffset);
+    const dx = -tx * Math.cos(sweep) + -ty * side * Math.sin(sweep);
+    const dy = -ty * Math.cos(sweep) + tx * side * Math.sin(sweep);
+    const rx = px[i] + -ty * side * hw * 0.62;
+    const ry = py[i] + tx * side * hw * 0.62;
+    const qx = -dy;
+    const qy = dx;
+    const ex = rx + dx * len;
+    const ey = ry + dy * len;
+    quad(
+      rx - qx * halfW,
+      ry - qy * halfW,
+      rx + qx * halfW,
+      ry + qy * halfW,
+      ex - qx * halfW,
+      ey - qy * halfW,
+      ex + qx * halfW,
+      ey + qy * halfW,
+      0,
+      1,
+      2,
+      f
+    );
+  }
+}
 function writeFish(f) {
   const s = f.spine;
   const L = f.length;
-  const amp = L * 0.05 * (1 + 0.5 * f.burst);
+  const amp = L * 0.045 * (1 + 0.6 * f.burst);
   for (let i = 0; i <= SPINE_SEGMENTS; i++) {
     const a = Math.max(0, i - 1);
     const b = Math.min(SPINE_SEGMENTS, i + 1);
@@ -216,77 +257,41 @@ function writeFish(f) {
     nx[i] = -ty;
     ny[i] = tx;
     const u = i / SPINE_SEGMENTS;
-    const off = Math.sin(f.phase - u * 4.6) * amp * (0.12 + Math.pow(u, 1.5));
+    const off = Math.sin(f.phase - u * 4.6) * amp * (0.1 + Math.pow(u, 1.6));
     px[i] = s[i * 2] + nx[i] * off;
     py[i] = s[i * 2 + 1] + ny[i] * off;
   }
-  {
-    const i = 3;
-    let tx = px[i - 1] - px[i + 1];
-    let ty = py[i - 1] - py[i + 1];
-    const tl = Math.hypot(tx, ty) || 1;
-    tx /= tl;
-    ty /= tl;
-    const hw = bodyHalfWidth(i / SPINE_SEGMENTS) * L;
-    const finLen = L * 0.17;
-    const finW = L * 0.06;
-    for (const side of [-1, 1]) {
-      const sweep = 0.85 + 0.28 * Math.sin(f.phase * 0.5 + side);
-      const dx = -tx * Math.cos(sweep) + -ty * side * Math.sin(sweep);
-      const dy = -ty * Math.cos(sweep) + tx * side * Math.sin(sweep);
-      const rx = px[i] + -ty * side * hw * 0.7;
-      const ry = py[i] + tx * side * hw * 0.7;
-      const qx = -dy;
-      const qy = dx;
-      const ex = rx + dx * finLen;
-      const ey = ry + dy * finLen;
-      quad(
-        rx - qx * finW,
-        ry - qy * finW,
-        rx + qx * finW,
-        ry + qy * finW,
-        ex - qx * finW,
-        ey - qy * finW,
-        ex + qx * finW,
-        ey + qy * finW,
-        0,
-        1,
-        2,
-        f
-      );
-    }
-  }
+  const pect = Math.round(SPINE_SEGMENTS * 0.2);
+  const pelv = Math.round(SPINE_SEGMENTS * 0.56);
+  pairedFins(f, pect, L * 0.24, L * 0.11, 0.95, 0.3, 0);
+  pairedFins(f, pelv, L * 0.15, L * 0.065, 0.8, 0.18, 2.1);
   {
     const e = SPINE_SEGMENTS;
     const base = Math.atan2(py[e] - py[e - 1], px[e] - px[e - 1]);
-    const tailLen = L * 0.36;
-    let prevL = null;
+    const tailLen = L * 0.38;
+    const step = tailLen / (TAIL_ROWS - 1);
+    let prev = null;
+    let cx = px[e];
+    let cy = py[e];
     for (let j = 0; j < TAIL_ROWS; j++) {
       const t = j / (TAIL_ROWS - 1);
-      const ang = base + Math.sin(f.phase - 5.4 - t * 1.2) * 0.45 * t;
-      let cx;
-      let cy;
-      if (j === 0) {
-        cx = px[e];
-        cy = py[e];
-      } else {
-        cx = prevL.cx + Math.cos(ang) * (tailLen / (TAIL_ROWS - 1));
-        cy = prevL.cy + Math.sin(ang) * (tailLen / (TAIL_ROWS - 1));
+      const ang = base + Math.sin(f.phase - 5.2 - t * 1.4) * 0.5 * t;
+      if (j > 0) {
+        cx += Math.cos(ang) * step;
+        cy += Math.sin(ang) * step;
       }
-      const hw = L * (0.045 + 0.16 * Math.pow(t, 0.8));
+      const hw = L * (0.035 + 0.24 * Math.pow(t, 0.9));
       const qx = -Math.sin(ang);
       const qy = Math.cos(ang);
-      const row = { cx, cy, lx: cx - qx * hw, ly: cy - qy * hw, rx: cx + qx * hw, ry: cy + qy * hw, t };
-      if (prevL) {
-        quad(prevL.lx, prevL.ly, prevL.rx, prevL.ry, row.lx, row.ly, row.rx, row.ry, prevL.t, row.t, 1, f);
-      }
-      prevL = row;
+      const row = { lx: cx - qx * hw, ly: cy - qy * hw, rx: cx + qx * hw, ry: cy + qy * hw, t };
+      if (prev) quad(prev.lx, prev.ly, prev.rx, prev.ry, row.lx, row.ly, row.rx, row.ry, prev.t, row.t, 1, f);
+      prev = row;
     }
   }
   for (let i = 0; i < SPINE_SEGMENTS; i++) {
     const ua = i / SPINE_SEGMENTS;
     const ub = (i + 1) / SPINE_SEGMENTS;
-    const wa = Math.max(bodyHalfWidth(ua), 0.025) * L;
+    const wa = Math.max(bodyHalfWidth(ua), 0.05) * L;
     const wb = bodyHalfWidth(ub) * L;
     const j = i + 1;
     quad(
@@ -345,12 +350,19 @@ float vnoise(vec2 p) {
   return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
              mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
+// Patches: blobs that stretch across the back, like real koi markings.
+float blobs(vec2 p) {
+  return vnoise(p) * 0.62 + vnoise(p * 2.1 + 3.1) * 0.27 + vnoise(p * 4.7 + 7.7) * 0.11;
+}
+
+const float WHITE = 0.25;   // "white" skin: a fill of the palest dots
+const float RIM = 0.44;     // the outline around every fish, a step darker than white skin
 
 void main() {
   float kind = v_meta.x;
   float seed = v_meta.y;
   float depth = v_meta.z;
-  float patchTh = v_meta.w;
+  float variety = v_meta.w;
   float u = v_uv.x;
   float v = v_uv.y;
   float av = abs(v);
@@ -358,38 +370,75 @@ void main() {
   float a;
 
   if (kind < 0.5) {
-    // Body: dense in the middle, softer towards the edges.
-    a = 1.0 - smoothstep(0.6, 1.0, av);
-    ink = 0.98 - 0.32 * av * av + 0.05 * (1.0 - u);
-    // White patches from low-frequency noise in fish space (they move with the body).
-    float n = vnoise(vec2(u * 3.4, v * 1.1) + seed * 91.7) * 0.72
-            + vnoise(vec2(u * 8.0, v * 2.4) + seed * 13.1) * 0.28;
-    float p = smoothstep(patchTh - 0.05, patchTh + 0.05, n);
-    p *= 1.0 - smoothstep(0.7, 0.92, u); // keep the tail end coloured
-    // White patches keep a faint fill and a dotted outline so the fish stays readable.
-    float rim = smoothstep(0.45, 0.85, av);
-    ink = mix(ink, mix(0.16, 0.6, rim), p);
-    // Fade a little where the body meets the tail fin.
-    ink *= mix(1.0, 0.72, smoothstep(0.82, 1.0, u));
+    // ---------- Body ----------
+    a = 1.0 - smoothstep(0.9, 1.0, av);
+    float edge = smoothstep(0.62, 0.97, av);        // 0 along the spine, 1 at the rim
+    float ridge = 1.0 - smoothstep(0.0, 0.38, av);  // darker line down the back
+
+    vec2 sd = seed * vec2(37.1, 11.7);
+    float n = blobs(vec2(u * 2.7, v * 0.7) + sd);
+    float n2 = blobs(vec2(u * 3.9, v * 0.9) + sd.yx * 1.7);
+
+    // Scales: an offset grid of small rounded cells along the body.
+    vec2 sc = vec2(u * 13.0, v * 2.3);
+    sc.y += 0.5 * mod(floor(sc.x), 2.0);
+    float scaleRim = smoothstep(0.24, 0.5, length((fract(sc) - 0.5) * vec2(1.0, 1.2)));
+
+    float base;
+    if (variety < 0.5) {
+      // Kohaku: white body with large deep patches.
+      base = mix(WHITE, 0.97, smoothstep(0.47, 0.505, n));
+    } else if (variety < 1.5) {
+      // Showa: deep body broken by white and mid-tone patches.
+      base = mix(0.97, 0.6, smoothstep(0.55, 0.58, n2));
+      base = mix(base, WHITE, smoothstep(0.58, 0.61, n));
+    } else if (variety < 2.5) {
+      // Asagi: mid-tone body with a net of lighter scale edges and a darker back.
+      base = 0.6 + 0.2 * ridge - 0.16 * scaleRim * (1.0 - ridge * 0.6);
+    } else if (variety < 3.5) {
+      // Solid: deep all over, scales just catching the light.
+      base = 0.93 - 0.12 * scaleRim * (1.0 - ridge);
+    } else {
+      // Tancho-like: white with a deep spot on the head and a few small marks.
+      float head = 1.0 - smoothstep(0.7, 1.0, length(vec2((u - 0.14) * 9.0, v * 1.9)));
+      float marks = smoothstep(0.62, 0.65, n);
+      base = mix(WHITE, 0.95, max(head, marks));
+    }
+
+    // White skin shows a faint scale texture too.
+    float isWhite = 1.0 - smoothstep(WHITE, WHITE + 0.2, base);
+    base += isWhite * 0.05 * (1.0 - scaleRim);
+
+    ink = base + 0.05 * ridge;
+    // Pale outline: dark areas fade to the rim tone, white areas gain it.
+    ink = mix(ink, RIM, edge * 0.8);
+    // Snout and tail stem are a touch lighter, so the head reads rounded.
+    ink = mix(ink, min(ink, 0.55), (1.0 - smoothstep(0.0, 0.06, u)) * 0.7);
+    ink = mix(ink, 0.5, smoothstep(0.88, 1.0, u) * 0.6);
+
+    // Eyes: tiny dark points on each side of the head.
+    float eye = 1.0 - smoothstep(0.012, 0.022, length(vec2(u - 0.085, (av - 0.62) * 0.13)));
+    ink = mix(ink, 1.0, eye);
   } else if (kind < 1.5) {
-    // Tail fin: translucent, streaky, forked at the end.
-    float cut = (u - 0.5) * 1.25;
-    float notch = cut > 0.0 ? 1.0 - smoothstep(cut - 0.14, cut, av) : 0.0;
-    float edge = 1.0 - smoothstep(0.62, 1.0, av);
-    float tip = 1.0 - smoothstep(0.8, 1.0, u);
+    // ---------- Tail fin: big, pale and forked, with fin rays ----------
+    float cut = (u - 0.5) * 0.85;
+    float notch = cut > 0.0 ? 1.0 - smoothstep(cut - 0.16, cut + 0.02, av) : 0.0;
+    float edge = 1.0 - smoothstep(0.72, 1.0, av);
+    float tip = 1.0 - smoothstep(0.78, 1.0, u + 0.18 * (1.0 - av));
     a = edge * tip * (1.0 - notch);
-    float streak = 0.7 + 0.3 * sin(v * 11.0 + seed * 20.0);
-    ink = 0.58 * streak * (1.0 - 0.35 * u);
+    float rays = 0.85 + 0.15 * sin(v * 15.0 + seed * 20.0);
+    ink = mix(0.42, 0.15, smoothstep(0.0, 0.5, u)) * rays;
   } else {
-    // Pectoral fin: a translucent teardrop.
-    float w = pow(sin(3.14159 * clamp(u * 0.85 + 0.15, 0.0, 1.0)), 0.7);
-    float r = av / max(w, 1e-3);
-    a = 1.0 - smoothstep(0.55, 1.0, r);
-    ink = 0.36 * (1.0 - 0.45 * u);
+    // ---------- Paired fins: translucent rounded fans with rays ----------
+    float r = length(vec2((u - 0.55) / 0.5, v / (0.3 + 0.7 * u)));
+    a = 1.0 - smoothstep(0.62, 1.0, r);
+    float rays = 0.88 + 0.12 * sin(v * 10.0 + u * 3.0);
+    ink = mix(0.3, 0.13, u) * rays;
   }
 
-  ink *= mix(1.0, 0.55, depth);
-  o = vec4(ink, 0.0, 0.0, a);
+  // Deeper fish are paler.
+  ink *= mix(1.0, 0.6, depth);
+  o = vec4(clamp(ink, 0.0, 1.0), 0.0, 0.0, a);
 }`;
 var DITHER_VS = `#version 300 es
 void main() {
@@ -406,6 +455,8 @@ uniform float u_dot;
 uniform int u_mode;
 uniform vec3 u_ink;
 uniform vec4 u_bg;
+uniform float u_stops[9]; // ink amount of each palette tone, u_stops[0] = 0 (paper)
+uniform int u_count;      // number of tones including paper
 out vec4 o;
 
 float bayer8(ivec2 p) {
@@ -433,9 +484,22 @@ void main() {
   } else {
     th = b;
   }
-  float on = k > th ? 1.0 : 0.0;
-  vec4 bg = vec4(u_bg.rgb * u_bg.a, u_bg.a);
-  o = mix(bg, vec4(u_ink, 1.0), on);
+  // Ordered dither between the two palette tones around k.
+  int i = 0;
+  for (int j = 1; j < 9; j++) {
+    if (j >= u_count) break;
+    if (k >= u_stops[j]) i = j;
+  }
+  float tone;
+  if (i >= u_count - 1) {
+    tone = u_stops[u_count - 1];
+  } else {
+    float lo = u_stops[i];
+    float hi = u_stops[i + 1];
+    tone = (k - lo) / (hi - lo) > th ? hi : lo;
+  }
+  vec3 bgP = u_bg.rgb * u_bg.a; // premultiplied
+  o = vec4(mix(bgP, u_ink, tone), mix(u_bg.a, 1.0, tone));
 }`;
 function compile(gl, type, src) {
   const sh = gl.createShader(type);
@@ -472,8 +536,11 @@ function createRenderer(gl) {
     dot: gl.getUniformLocation(ditherProg, "u_dot"),
     mode: gl.getUniformLocation(ditherProg, "u_mode"),
     ink: gl.getUniformLocation(ditherProg, "u_ink"),
-    bg: gl.getUniformLocation(ditherProg, "u_bg")
+    bg: gl.getUniformLocation(ditherProg, "u_bg"),
+    stops: gl.getUniformLocation(ditherProg, "u_stops"),
+    count: gl.getUniformLocation(ditherProg, "u_count")
   };
+  const stopBuf = new Float32Array(9);
   const vao = gl.createVertexArray();
   const vbo = gl.createBuffer();
   gl.bindVertexArray(vao);
@@ -509,7 +576,8 @@ function createRenderer(gl) {
   return {
     /**
      * frame: { canvasW, canvasH (device px), dot (device px per dot), cssPerDot,
-     *          vertices: Float32Array, count, mode: 0|1, ink:[r,g,b], bg:[r,g,b,a] }
+     *          vertices: Float32Array, count, mode: 0|1, ink:[r,g,b], bg:[r,g,b,a],
+     *          stops: [0, ..., 1] ink amount of each palette tone }
      */
     render(frame) {
       const sw = Math.max(1, Math.ceil(frame.canvasW / frame.dot));
@@ -541,6 +609,10 @@ function createRenderer(gl) {
       gl.uniform1i(loc.mode, frame.mode);
       gl.uniform3fv(loc.ink, frame.ink);
       gl.uniform4fv(loc.bg, frame.bg);
+      stopBuf.fill(1);
+      stopBuf.set(frame.stops.slice(0, 9));
+      gl.uniform1fv(loc.stops, stopBuf);
+      gl.uniform1i(loc.count, Math.min(9, frame.stops.length));
       gl.bindVertexArray(emptyVao);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.bindVertexArray(null);
@@ -573,6 +645,8 @@ var DEFAULTS = Object.freeze({
   // paper colour, or 'transparent'
   mode: "bayer",
   // 'bayer' | 'lines'
+  tones: 4,
+  // shades of ink between paper and full ink (1 = single colour, max 8)
   pixelSize: 1.5,
   // size of one dot in CSS px
   speed: 1,
@@ -611,6 +685,12 @@ function parseColor(c) {
     return [(n >>> 24 & 255) / 255, (n >>> 16 & 255) / 255, (n >>> 8 & 255) / 255, (n & 255) / 255];
   }
   return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255, 1];
+}
+function toneStops(n) {
+  const count = Math.max(1, Math.min(8, Math.round(n) || 1));
+  const stops = [0];
+  for (let i = 1; i <= count; i++) stops.push(Math.pow(i / count, 0.85));
+  return stops;
 }
 function resolveTarget(t) {
   if (typeof document === "undefined") throw new Error("koi-pond needs a browser");
@@ -734,7 +814,8 @@ function createKoiPond(options = {}) {
       count,
       mode: opts.mode === "lines" ? 1 : 0,
       ink: ink.slice(0, 3),
-      bg
+      bg,
+      stops: toneStops(opts.tones)
     });
   }
   function speedFactor() {
@@ -884,5 +965,6 @@ var index_default = createKoiPond;
 export {
   DEFAULTS,
   createKoiPond,
-  index_default as default
+  index_default as default,
+  toneStops
 };
