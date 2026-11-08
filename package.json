@@ -1,6 +1,6 @@
 {
   "name": "koi-pond",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A dithered koi pond shader (WebGL2) you can drop into any website background.",
   "type": "module",
   "main": "dist/koi-pond.esm.js",

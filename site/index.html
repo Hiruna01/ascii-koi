@@ -31,7 +31,7 @@
         <div class="cta">
           <a class="btn primary" href="#install">Add it to your site <svg class="ico" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a>
           <button class="snippet" type="button" aria-label="Copy the script tag"
-            data-copy='&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond&gt;&lt;/script&gt;'>
+            data-copy='&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond&gt;&lt;/script&gt;'>
             <code><span class="tok">&lt;script</span> data-koi-pond<span class="tok">&gt;</span></code>
             <span class="snippet-copy">Copy</span>
           </button>
@@ -55,10 +55,10 @@
           </div>
 
           <div class="tabpanel" id="tab-script" role="tabpanel" aria-labelledby="t-script">
-            <p>Add this before <code>&lt;/body&gt;</code>.</p>
-            <pre><button class="copy" type="button">Copy</button><code>&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond&gt;&lt;/script&gt;</code></pre>
+            <p>Add this before <code>&lt;/body&gt;</code>. The <code>@v1.0.0</code> pins a version, so your site never changes unexpectedly.</p>
+            <pre><button class="copy" type="button">Copy</button><code>&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond&gt;&lt;/script&gt;</code></pre>
             <p>Options go in <code>data-</code> attributes, for example real koi colours on white:</p>
-            <pre><button class="copy" type="button">Copy</button><code>&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond
+            <pre><button class="copy" type="button">Copy</button><code>&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond
         data-colors="koi" data-background="#ffffff" data-count="14"&gt;&lt;/script&gt;</code></pre>
           </div>
 
@@ -77,7 +77,7 @@ pond.destroy();</code></pre>
             <p>Give it a <code>target</code> and the pond fills only that element.</p>
             <pre><button class="copy" type="button">Copy</button><code>&lt;section id="hero"&gt;...&lt;/section&gt;
 
-&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js"&gt;&lt;/script&gt;
+&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   KoiPond.create({ target: '#hero', count: 6 });
 &lt;/script&gt;</code></pre>
@@ -178,7 +178,7 @@ pond.destroy();</code></pre>
       </section>
 
       <footer class="foot">
-        <span>koi&middot;pond, MIT licensed.</span>
+        <span>koi&middot;pond <span class="ver" data-version></span>, MIT licensed. <a href="https://github.com/Hiruna01/ascii-koi/blob/main/CHANGELOG.md">Changelog</a></span>
         <a href="https://github.com/Hiruna01/ascii-koi">Source on GitHub</a>
       </footer>
     </div>

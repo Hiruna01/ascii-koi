@@ -22,17 +22,21 @@ GitHub Pages by [`.github/workflows/pages.yml`](.github/workflows/pages.yml) on 
 
 ### Script tag
 
-Straight from the CDN (jsDelivr serves files from this GitHub repo):
+Straight from the CDN (jsDelivr serves files from this GitHub repo). Pin a version so
+your site never changes unexpectedly:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond></script>
+<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond></script>
 ```
+
+`@main` always gives the newest code instead. See [CHANGELOG.md](CHANGELOG.md) for what
+changed in each version, and `KoiPond.VERSION` tells you which one is running.
 
 Real koi colours on dark pond water, or on white (any `data-background` works):
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond data-colors="koi"></script>
-<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond data-colors="koi" data-background="#ffffff"></script>
+<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond data-colors="koi"></script>
+<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond data-colors="koi" data-background="#ffffff"></script>
 ```
 
 Or download [`dist/koi-pond.min.js`](dist/koi-pond.min.js), host it yourself, and:
@@ -130,3 +134,10 @@ npm run build  # dist/ + site/koi-pond.min.js
 ## License
 
 MIT
+
+## Releasing
+
+1. Update `version` in `package.json` and add an entry to `CHANGELOG.md`.
+2. `npm test && npm run build`, then commit (the built `dist/` files are part of the release).
+3. Tag and push: `git tag v1.2.3 && git push origin main v1.2.3`.
+4. The CDN serves the tag at `https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.2.3/dist/koi-pond.min.js`.

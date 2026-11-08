@@ -21,7 +21,14 @@ const builds = [
     outfile: 'dist/koi-pond.min.js',
     minify: true,
   },
-].map((b) => ({ bundle: true, target: 'es2019', banner, legalComments: 'none', ...b }));
+].map((b) => ({
+  bundle: true,
+  target: 'es2019',
+  banner,
+  legalComments: 'none',
+  define: { __KOI_POND_VERSION__: JSON.stringify(pkg.version) },
+  ...b,
+}));
 
 const copyToSite = {
   name: 'copy-to-site',

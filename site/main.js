@@ -1,6 +1,7 @@
 // Showcase page: the pond itself is the page background.
 (function () {
   const pond = KoiPond.create({ count: 10 });
+  document.querySelectorAll('[data-version]').forEach((el) => (el.textContent = 'v' + KoiPond.VERSION));
   window.koiPond = pond;
 
   // --- Dock controls

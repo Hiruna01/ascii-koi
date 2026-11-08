@@ -6,9 +6,9 @@
 //   data-colors="koi" data-ink="#1a42e2" data-background="#eff5fd" data-mode="lines"
 //   data-count="12" data-fish-scale="1.4" data-pixel-size="2" data-speed="0.8" data-tones="4" data-target="#hero"
 
-import { createKoiPond, DEFAULTS, VARIETY_NAMES } from './index.js';
+import { createKoiPond, DEFAULTS, VARIETY_NAMES, VERSION } from './index.js';
 
-export { createKoiPond, DEFAULTS, VARIETY_NAMES };
+export { createKoiPond, DEFAULTS, VARIETY_NAMES, VERSION };
 export const create = createKoiPond;
 
 const script = typeof document !== 'undefined' ? document.currentScript : null;

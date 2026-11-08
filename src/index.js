@@ -79,6 +79,10 @@ export function toneStops(n) {
 }
 
 export { VARIETY_NAMES };
+
+/* global __KOI_POND_VERSION__ */
+/** The library version, e.g. '1.0.0' ('dev' when run from source). */
+export const VERSION = typeof __KOI_POND_VERSION__ !== 'undefined' ? __KOI_POND_VERSION__ : 'dev';
 export const PAPER = '#eff5fd';
 export const POND = '#0d2a30';
 

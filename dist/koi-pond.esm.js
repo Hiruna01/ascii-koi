@@ -1,4 +1,4 @@
-/*! koi-pond v0.1.0 | MIT */
+/*! koi-pond v1.0.0 | MIT */
 
 // src/sim.js
 var TAU = Math.PI * 2;
@@ -1089,6 +1089,7 @@ function toneStops(n) {
   for (let i = 1; i <= count; i++) stops.push(Math.pow(i / count, 0.85));
   return stops;
 }
+var VERSION = true ? "1.0.0" : "dev";
 var PAPER = "#eff5fd";
 var POND = "#0d2a30";
 function backgroundFor(opts) {
@@ -1419,6 +1420,7 @@ export {
   PAPER,
   POND,
   VARIETY_NAMES,
+  VERSION,
   backgroundLightness,
   createKoiPond,
   index_default as default,
