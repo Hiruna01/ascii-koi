@@ -28,6 +28,9 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      # Cache-busting: stamp CSS/JS links with the commit, so a new page never
+      # runs with old cached files (GitHub Pages lets browsers cache for 10 min).
+      - run: sed -i "s/?v=dev/?v=${GITHUB_SHA::7}/g" site/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
