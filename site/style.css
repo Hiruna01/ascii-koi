@@ -9,6 +9,23 @@
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+/* Real koi colours: dark pond water. */
+html.theme-pond {
+  --paper: #0d2a30;
+  --text: #eef6f4;
+  --muted: #a9c2c0;
+  --ink: #ff7a3d;
+  --line: rgba(238, 246, 244, 0.16);
+  --panel: rgba(13, 42, 48, 0.86);
+}
+html.theme-pond pre { background: #06171b; }
+html.theme-pond .btn.primary { color: #10262b; }
+html.theme-pond .dock { background: rgba(13, 42, 48, 0.86); }
+html.theme-pond .seg { background: rgba(238, 246, 244, 0.08); }
+html.theme-pond .seg button[aria-checked="true"] { background: #eef6f4; color: #0d2a30; }
+html.theme-pond .note { background: rgba(255, 122, 61, 0.1); }
+html { transition: background-color 0.4s ease; }
+
 * { box-sizing: border-box; }
 
 /* The pond canvas sits at z-index -1, so the page colour lives on <html>. */
@@ -181,12 +198,30 @@ td:nth-child(2) { white-space: nowrap; color: var(--muted); }
 .sep { width: 1px; height: 18px; background: var(--line); }
 .seg { display: flex; background: rgba(26, 66, 226, 0.07); border-radius: 999px; padding: 3px; }
 .seg button {
-  font: 600 13px var(--sans); cursor: pointer; border: 0; background: transparent;
+  font: 600 13px var(--sans); cursor: pointer; border: 0; background: transparent; white-space: nowrap;
   color: var(--muted); padding: 5px 12px; border-radius: 999px;
 }
 .seg button[aria-checked="true"] { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(11, 26, 77, 0.12); }
 .range { display: inline-flex; align-items: center; gap: 8px; }
 .range input { width: 84px; accent-color: var(--ink); }
+
+/* ---------- Fish only: nothing but the pond ---------- */
+.nav, main, .foot, .dock { transition: opacity 0.35s ease, visibility 0.35s; }
+html.fish-only { overflow: hidden; }
+html.fish-only .nav, html.fish-only main, html.fish-only .foot, html.fish-only .dock {
+  opacity: 0; visibility: hidden; pointer-events: none;
+}
+.exit-view {
+  position: fixed; top: 16px; right: 16px; z-index: 20;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  font: 600 13px var(--sans); color: var(--text);
+  background: var(--panel); border: 1px solid var(--line);
+  opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s;
+}
+.exit-view svg { width: 12px; height: 12px; }
+html.fish-only .exit-view.visible { opacity: 1; visibility: visible; }
+html.fish-only .exit-view:focus-visible { opacity: 1; visibility: visible; }
 
 /* ---------- Small screens ---------- */
 @media (max-width: 760px) {
@@ -198,7 +233,7 @@ td:nth-child(2) { white-space: nowrap; color: var(--muted); }
   .range { gap: 4px; }
 }
 @media (max-width: 560px) {
-  .dock .range:first-of-type { display: none; }
+  .dock .range, .dock .seg:last-of-type, .dock .sep:last-of-type { display: none; }
   .dock .icon { width: 28px; height: 28px; }
   .seg button { padding: 5px 9px; }
 }

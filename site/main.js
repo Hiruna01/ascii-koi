@@ -24,6 +24,43 @@
     pond.set({ count: +document.querySelector('[data-opt="count"]').value });
   });
 
+  // --- Colours: blue ink on paper, or real koi colours on dark pond water.
+  const colorButtons = document.querySelectorAll('[data-colors]');
+  colorButtons.forEach((b) =>
+    b.addEventListener('click', () => {
+      const koi = b.dataset.colors === 'koi';
+      pond.set({ colors: b.dataset.colors });
+      document.documentElement.classList.toggle('theme-pond', koi);
+      document.querySelector('meta[name="theme-color"]').content = koi ? '#0d2a30' : '#eff5fd';
+      colorButtons.forEach((o) => o.setAttribute('aria-checked', String(o === b)));
+    }),
+  );
+
+  // --- Fish only: hide every page element and leave just the pond.
+  const exitBtn = document.querySelector('[data-action="exit-fish-only"]');
+  let idleTimer = 0;
+  function showExit() {
+    exitBtn.classList.add('visible');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => exitBtn.classList.remove('visible'), 2000);
+  }
+  function setFishOnly(on) {
+    document.documentElement.classList.toggle('fish-only', on);
+    if (on) {
+      showExit();
+      window.addEventListener('pointermove', showExit, { passive: true });
+    } else {
+      window.removeEventListener('pointermove', showExit);
+      exitBtn.classList.remove('visible');
+      clearTimeout(idleTimer);
+    }
+  }
+  document.querySelector('[data-action="fish-only"]').addEventListener('click', () => setFishOnly(true));
+  exitBtn.addEventListener('click', () => setFishOnly(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.documentElement.classList.contains('fish-only')) setFishOnly(false);
+  });
+
   const modeButtons = document.querySelectorAll('[data-mode]');
   modeButtons.forEach((b) =>
     b.addEventListener('click', () => {

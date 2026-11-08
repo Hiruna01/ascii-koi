@@ -3,9 +3,11 @@
 A dithered koi pond for your website background. Koi made of ordered-dither dots
 swim behind your content; put your pointer on a fish and it darts away.
 
-- WebGL2, no dependencies, about 9 KB gzipped
+- WebGL2, no dependencies, about 10 KB gzipped
 - Multi-tone Bayer dot or line-screen dithering (paper, pale, light, mid and deep ink)
 - Five koi varieties with markings, scales, eyes and translucent fins
+- Real koi colours (`colors: 'koi'`): red, black and white Kohaku, Sanke and Showa, Tancho,
+  blue-grey Asagi, metallic gold and platinum Ogon, brown Chagoi, on dark pond water
 - Works as a full-page background or inside a single element
 - Page stays clickable (the canvas ignores pointer events and only reads the pointer position)
 - Pauses in background tabs, slows down for `prefers-reduced-motion`
@@ -21,6 +23,12 @@ Straight from the CDN (jsDelivr serves files from this GitHub repo):
 
 ```html
 <script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond></script>
+```
+
+Real koi colours on dark pond water:
+
+```html
+<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond data-colors="koi"></script>
 ```
 
 Or download [`dist/koi-pond.min.js`](dist/koi-pond.min.js), host it yourself, and:
@@ -68,8 +76,9 @@ background colour, move it to `html` (or remove it) so the pond shows through.
 | `canvas` | `null` | Use your own `<canvas>` instead (sized by your CSS). |
 | `count` | `10` | Number of koi. |
 | `fishSize` | `'auto'` | Body length in CSS px; auto scales with the viewport. |
-| `ink` | `'#1a42e2'` | Dot colour (hex or `rgb()`). |
-| `background` | `'#eff5fd'` | Paper colour, or `'transparent'`. |
+| `colors` | `'ink'` | `'ink'` for one ink colour, `'koi'` for real koi colours. |
+| `ink` | `'#1a42e2'` | Dot colour when `colors` is `'ink'` (hex or `rgb()`). |
+| `background` | `'auto'` | Light paper (`#eff5fd`) for ink, dark pond (`#0d2a30`) for koi colours; or any colour, or `'transparent'`. |
 | `mode` | `'bayer'` | `'bayer'` or `'lines'`. |
 | `tones` | `4` | Shades of ink between paper and full ink; `1` gives single-colour dots. |
 | `pixelSize` | `1.5` | Size of one dot in CSS px. |

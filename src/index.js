@@ -19,8 +19,9 @@ export const DEFAULTS = Object.freeze({
   canvas: null, // use your own <canvas> instead (sized by your CSS)
   count: 10, // number of koi
   fishSize: 'auto', // body length in CSS px, or 'auto' (scales with the viewport)
-  ink: '#1a42e2', // dot colour
-  background: '#eff5fd', // paper colour, or 'transparent'
+  colors: 'ink', // 'ink' = single ink colour, 'koi' = real koi colours (red, black, white, gold...)
+  ink: '#1a42e2', // dot colour when colors is 'ink'
+  background: 'auto', // 'auto', any colour, or 'transparent'. Auto = light paper for ink, dark pond for koi
   mode: 'bayer', // 'bayer' | 'lines'
   tones: 4, // shades of ink between paper and full ink (1 = single colour, max 8)
   pixelSize: 1.5, // size of one dot in CSS px
@@ -64,6 +65,16 @@ export function toneStops(n) {
   const stops = [0];
   for (let i = 1; i <= count; i++) stops.push(Math.pow(i / count, 0.85));
   return stops;
+}
+
+export const PAPER = '#eff5fd';
+export const POND = '#0d2a30';
+
+function backgroundFor(opts) {
+  if (opts.background == null || opts.background === 'auto') {
+    return parseColor(opts.colors === 'koi' ? POND : PAPER);
+  }
+  return parseColor(opts.background);
 }
 
 function resolveTarget(t) {
@@ -120,7 +131,7 @@ export function createKoiPond(options = {}) {
   let gl = null;
   let renderer = null;
   let ink = parseColor(opts.ink);
-  let bg = parseColor(opts.background);
+  let bg = backgroundFor(opts);
   let fishes = [];
   let vertices = new Float32Array(0);
   let bounds = { width: 0, height: 0 };
@@ -201,6 +212,7 @@ export function createKoiPond(options = {}) {
       ink: ink.slice(0, 3),
       bg,
       stops: toneStops(opts.tones),
+      natural: opts.colors === 'koi',
     });
   }
 
@@ -310,8 +322,8 @@ export function createKoiPond(options = {}) {
       const prevSize = opts.fishSize;
       Object.assign(opts, partial);
       if ('ink' in partial) ink = parseColor(opts.ink);
-      if ('background' in partial) {
-        bg = parseColor(opts.background);
+      if ('background' in partial || 'colors' in partial) {
+        bg = backgroundFor(opts);
         if (!gl) canvas.style.background = `rgba(${bg[0] * 255},${bg[1] * 255},${bg[2] * 255},${bg[3]})`;
       }
       if ('maxDpr' in partial) measure();

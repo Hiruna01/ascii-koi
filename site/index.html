@@ -24,7 +24,7 @@
 
   <main id="top">
     <section class="hero">
-      <p class="eyebrow">WebGL2 dither shader &middot; 9 KB gzipped &middot; no dependencies</p>
+      <p class="eyebrow">WebGL2 dither shader &middot; 10 KB gzipped &middot; no dependencies</p>
       <h1>A koi pond for your website background.</h1>
       <p class="lede">
         Koi made of ordered-dither dots swim quietly behind your content.
@@ -53,6 +53,8 @@
         <p>Options go in <code>data-</code> attributes:</p>
         <pre><button class="copy" type="button">Copy</button><code>&lt;script src="koi-pond.min.js" data-koi-pond
         data-mode="lines" data-count="14" data-pixel-size="2"&gt;&lt;/script&gt;</code></pre>
+        <p>Real koi colours on dark pond water:</p>
+        <pre><button class="copy" type="button">Copy</button><code>&lt;script src="koi-pond.min.js" data-koi-pond data-colors="koi"&gt;&lt;/script&gt;</code></pre>
       </div>
 
       <div class="tabpanel" id="tab-module" role="tabpanel" aria-labelledby="t-module" hidden>
@@ -116,8 +118,9 @@ pond.destroy();</code></pre>
             <tr><td><code>canvas</code></td><td><code>null</code></td><td>Use your own <code>&lt;canvas&gt;</code> instead (sized by your CSS).</td></tr>
             <tr><td><code>count</code></td><td><code>10</code></td><td>Number of koi.</td></tr>
             <tr><td><code>fishSize</code></td><td><code>'auto'</code></td><td>Body length in CSS pixels. Auto scales with the viewport.</td></tr>
-            <tr><td><code>ink</code></td><td><code>'#1a42e2'</code></td><td>Dot colour (hex or <code>rgb()</code>).</td></tr>
-            <tr><td><code>background</code></td><td><code>'#eff5fd'</code></td><td>Paper colour, or <code>'transparent'</code> to show your page behind the dots.</td></tr>
+            <tr><td><code>colors</code></td><td><code>'ink'</code></td><td><code>'ink'</code> for one ink colour, or <code>'koi'</code> for real koi colours: red, black and white Kohaku, Sanke and Showa, Tancho, blue-grey Asagi, metallic gold and platinum Ogon, brown Chagoi.</td></tr>
+            <tr><td><code>ink</code></td><td><code>'#1a42e2'</code></td><td>Dot colour when <code>colors</code> is <code>'ink'</code> (hex or <code>rgb()</code>).</td></tr>
+            <tr><td><code>background</code></td><td><code>'auto'</code></td><td>Light paper (<code>#eff5fd</code>) for ink, dark pond water (<code>#0d2a30</code>) for real koi colours. Or any colour, or <code>'transparent'</code>.</td></tr>
             <tr><td><code>mode</code></td><td><code>'bayer'</code></td><td><code>'bayer'</code> dots or <code>'lines'</code> line screen.</td></tr>
             <tr><td><code>tones</code></td><td><code>4</code></td><td>Shades of ink between paper and full ink. <code>1</code> gives single-colour dots.</td></tr>
             <tr><td><code>pixelSize</code></td><td><code>1.5</code></td><td>Size of one dot in CSS pixels.</td></tr>
@@ -153,7 +156,14 @@ pond.destroy();</code></pre>
     <button class="icon" type="button" data-action="reset" aria-label="New pond">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5V5h-2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
+    <button class="icon" type="button" data-action="fish-only" aria-label="Show only the fish" title="Show only the fish (Esc to exit)">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
     <span class="sep" aria-hidden="true"></span>
+    <div class="seg" role="radiogroup" aria-label="Fish colours">
+      <button type="button" role="radio" aria-checked="true" data-colors="ink">Blue</button>
+      <button type="button" role="radio" aria-checked="false" data-colors="koi">Real koi</button>
+    </div>
     <div class="seg" role="radiogroup" aria-label="Dither mode">
       <button type="button" role="radio" aria-checked="true" data-mode="bayer">Bayer</button>
       <button type="button" role="radio" aria-checked="false" data-mode="lines">Lines</button>
@@ -162,10 +172,15 @@ pond.destroy();</code></pre>
     <label class="range">Dots
       <input type="range" min="1" max="4" step="0.5" value="1.5" data-opt="pixelSize" />
     </label>
-    <label class="range">Koi
+    <label class="range">Fish
       <input type="range" min="1" max="24" step="1" value="10" data-opt="count" />
     </label>
   </div>
+
+  <button class="exit-view" type="button" data-action="exit-fish-only" aria-label="Back to the page">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span>Back to page</span>
+  </button>
 
   <script src="koi-pond.min.js"></script>
   <script src="main.js"></script>

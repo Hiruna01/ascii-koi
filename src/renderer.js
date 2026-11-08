@@ -1,11 +1,13 @@
 // WebGL2 renderer.
 //
 // Pass 1 (scene): fish are drawn as soft grayscale "ink amount" (0 = paper,
-// 1 = full ink) into a small R8 texture with one texel per output dot.
+// 1 = full ink) into a small R8 texture with one texel per output dot, and
+// their pigment colour (real koi colours) into a matching RGBA texture.
 // Pass 2 (dither): every screen pixel finds its dot, reads the ink amount and
 // picks one of a few palette tones (paper, pale, light, mid, deep ink). Between
 // two tones, an ordered-dither threshold (8x8 Bayer matrix, or a line screen)
-// decides which of the two the dot gets.
+// decides which of the two the dot gets. The dot's colour is the ink colour,
+// or with real koi colours, the pigment colour of the fish under it.
 
 const SCENE_VS = `#version 300 es
 layout(location = 0) in vec2 a_pos;
@@ -25,7 +27,9 @@ const SCENE_FS = `#version 300 es
 precision highp float;
 in vec2 v_uv;
 in vec4 v_meta;
-out vec4 o;
+layout(location = 0) out vec4 oInk;   // ink amount (red channel), alpha = coverage
+layout(location = 1) out vec4 oColor; // pigment colour, alpha = coverage
+uniform int u_natural;                // 1 = real koi colours
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -47,6 +51,27 @@ float blobs(vec2 p) {
 const float WHITE = 0.25;   // "white" skin: a fill of the palest dots
 const float RIM = 0.44;     // the outline around every fish, a step darker than white skin
 
+// Real koi colours (Japanese koi terms).
+const vec3 SHIRO = vec3(0.96, 0.94, 0.9);    // shiroji: white skin
+const vec3 HI = vec3(0.9, 0.29, 0.11);       // hi: red-orange
+const vec3 SUMI = vec3(0.09, 0.09, 0.11);    // sumi: black
+const vec3 ASAGI = vec3(0.4, 0.53, 0.64);    // asagi: blue-grey back
+const vec3 ASAGI_NET = vec3(0.7, 0.79, 0.84);// lighter scale edges of asagi
+
+// Single-colour koi: ogon (gold), platinum ogon, orenji ogon, kigoi, chagoi, benigoi.
+vec3 solidColor(float seed) {
+  float k = fract(seed * 13.7);
+  if (k < 0.24) return vec3(0.94, 0.69, 0.2);
+  if (k < 0.42) return vec3(0.9, 0.91, 0.92);
+  if (k < 0.6) return vec3(0.97, 0.52, 0.13);
+  if (k < 0.72) return vec3(0.94, 0.82, 0.27);
+  if (k < 0.88) return vec3(0.52, 0.34, 0.19);
+  return vec3(0.82, 0.2, 0.1);
+}
+bool metallicSolid(float seed) {
+  return fract(seed * 13.7) < 0.72;
+}
+
 void main() {
   float kind = v_meta.x;
   float seed = v_meta.y;
@@ -55,7 +80,9 @@ void main() {
   float u = v_uv.x;
   float v = v_uv.y;
   float av = abs(v);
-  float ink;
+  float ink;   // ink amount for the single-colour look
+  float amt;   // ink amount for the real-colour look
+  vec3 col;    // real koi colour
   float a;
 
   if (kind < 0.5) {
@@ -75,28 +102,43 @@ void main() {
 
     float base;
     if (variety < 0.5) {
-      // Kohaku: white body with large deep patches.
-      base = mix(WHITE, 0.97, smoothstep(0.47, 0.505, n));
+      // Kohaku (red on white). Half of them carry small black spots: Taisho Sanke.
+      float hi = smoothstep(0.47, 0.505, n);
+      float sanke = step(0.5, fract(seed * 7.3));
+      float spots = sanke * smoothstep(0.72, 0.75, blobs(vec2(u * 7.0, v * 1.8) + sd * 2.3))
+                  * smoothstep(0.16, 0.26, u);
+      base = max(mix(WHITE, 0.97, hi), 0.97 * spots);
+      col = mix(mix(SHIRO, HI, hi), SUMI, spots);
     } else if (variety < 1.5) {
-      // Showa: deep body broken by white and mid-tone patches.
-      base = mix(0.97, 0.6, smoothstep(0.55, 0.58, n2));
-      base = mix(base, WHITE, smoothstep(0.58, 0.61, n));
+      // Showa: black body with red and white markings.
+      float m = smoothstep(0.55, 0.58, n2);
+      float w = smoothstep(0.58, 0.61, n);
+      base = mix(mix(0.97, 0.6, m), WHITE, w);
+      col = mix(mix(SUMI, HI, m), SHIRO, w);
     } else if (variety < 2.5) {
-      // Asagi: mid-tone body with a net of lighter scale edges and a darker back.
+      // Asagi: blue-grey back with a net of lighter scale edges, red-orange flanks.
       base = 0.6 + 0.2 * ridge - 0.16 * scaleRim * (1.0 - ridge * 0.6);
+      vec3 back = mix(ASAGI * 0.86, ASAGI_NET, scaleRim * (1.0 - ridge * 0.6));
+      float flank = smoothstep(0.5, 0.92, av) * smoothstep(0.06, 0.3, u);
+      col = mix(back, HI * 1.05, flank * 0.9);
     } else if (variety < 3.5) {
-      // Solid: deep all over, scales just catching the light.
+      // Single colour: metallic ogon (gold, platinum, orange, yellow), chagoi, benigoi.
       base = 0.93 - 0.12 * scaleRim * (1.0 - ridge);
+      vec3 c = solidColor(seed);
+      float shine = metallicSolid(seed) ? 0.55 : 0.2;
+      col = mix(c * 0.84, min(c * 1.2 + 0.05, vec3(1.0)), scaleRim * shine);
     } else {
-      // Tancho-like: white with a deep spot on the head and a few small marks.
+      // Tancho: white with one red spot on the head, sometimes a few black marks.
       float head = 1.0 - smoothstep(0.7, 1.0, length(vec2((u - 0.14) * 9.0, v * 1.9)));
       float marks = smoothstep(0.62, 0.65, n);
       base = mix(WHITE, 0.95, max(head, marks));
+      col = mix(mix(SHIRO, SUMI, marks), HI, head);
     }
 
     // White skin shows a faint scale texture too.
     float isWhite = 1.0 - smoothstep(WHITE, WHITE + 0.2, base);
     base += isWhite * 0.05 * (1.0 - scaleRim);
+    col *= 1.0 - 0.05 * scaleRim;
 
     ink = base + 0.05 * ridge;
     // Pale outline: dark areas fade to the rim tone, white areas gain it.
@@ -105,29 +147,49 @@ void main() {
     ink = mix(ink, min(ink, 0.55), (1.0 - smoothstep(0.0, 0.06, u)) * 0.7);
     ink = mix(ink, 0.5, smoothstep(0.88, 1.0, u) * 0.6);
 
+    // Real colours: solid body, rounded shading towards the sides.
+    col *= 1.0 - 0.06 * ridge;
+    col = mix(col, col * 0.68, edge * 0.8);
+    amt = mix(0.98, 0.72, edge * 0.85) * mix(1.0, 0.8, smoothstep(0.9, 1.0, u));
+
     // Eyes: tiny dark points on each side of the head.
     float eye = 1.0 - smoothstep(0.012, 0.022, length(vec2(u - 0.085, (av - 0.62) * 0.13)));
     ink = mix(ink, 1.0, eye);
-  } else if (kind < 1.5) {
-    // ---------- Tail fin: big, pale and forked, with fin rays ----------
-    float cut = (u - 0.5) * 0.85;
-    float notch = cut > 0.0 ? 1.0 - smoothstep(cut - 0.16, cut + 0.02, av) : 0.0;
-    float edge = 1.0 - smoothstep(0.72, 1.0, av);
-    float tip = 1.0 - smoothstep(0.78, 1.0, u + 0.18 * (1.0 - av));
-    a = edge * tip * (1.0 - notch);
-    float rays = 0.85 + 0.15 * sin(v * 15.0 + seed * 20.0);
-    ink = mix(0.42, 0.15, smoothstep(0.0, 0.5, u)) * rays;
+    col = mix(col, SUMI, eye);
   } else {
-    // ---------- Paired fins: translucent rounded fans with rays ----------
-    float r = length(vec2((u - 0.55) / 0.5, v / (0.3 + 0.7 * u)));
-    a = 1.0 - smoothstep(0.62, 1.0, r);
-    float rays = 0.88 + 0.12 * sin(v * 10.0 + u * 3.0);
-    ink = mix(0.3, 0.13, u) * rays;
+    // ---------- Fins: translucent, tinted like the body ----------
+    vec3 finCol;
+    if (variety < 0.5 || variety > 3.5) finCol = SHIRO;
+    else if (variety < 1.5) finCol = mix(SUMI, SHIRO, smoothstep(0.05, 0.6, u)); // black fin base
+    else if (variety < 2.5) finCol = mix(HI, SHIRO, 0.25);
+    else finCol = solidColor(seed);
+
+    if (kind < 1.5) {
+      // Tail fin: big, pale and forked, with fin rays.
+      float cut = (u - 0.5) * 0.85;
+      float notch = cut > 0.0 ? 1.0 - smoothstep(cut - 0.16, cut + 0.02, av) : 0.0;
+      float edge = 1.0 - smoothstep(0.72, 1.0, av);
+      float tip = 1.0 - smoothstep(0.78, 1.0, u + 0.18 * (1.0 - av));
+      a = edge * tip * (1.0 - notch);
+      float rays = 0.85 + 0.15 * sin(v * 15.0 + seed * 20.0);
+      ink = mix(0.42, 0.15, smoothstep(0.0, 0.5, u)) * rays;
+      amt = mix(0.66, 0.3, smoothstep(0.0, 0.5, u)) * rays;
+    } else {
+      // Paired fins: translucent rounded fans with rays.
+      float r = length(vec2((u - 0.55) / 0.5, v / (0.3 + 0.7 * u)));
+      a = 1.0 - smoothstep(0.62, 1.0, r);
+      float rays = 0.88 + 0.12 * sin(v * 10.0 + u * 3.0);
+      ink = mix(0.3, 0.13, u) * rays;
+      amt = mix(0.58, 0.28, u) * rays;
+    }
+    col = finCol;
   }
 
   // Deeper fish are paler.
-  ink *= mix(1.0, 0.6, depth);
-  o = vec4(clamp(ink, 0.0, 1.0), 0.0, 0.0, a);
+  float fade = mix(1.0, 0.6, depth);
+  float k = u_natural == 1 ? amt : ink;
+  oInk = vec4(clamp(k * fade, 0.0, 1.0), 0.0, 0.0, a);
+  oColor = vec4(clamp(col, 0.0, 1.0), a);
 }`;
 
 const DITHER_VS = `#version 300 es
@@ -141,6 +203,8 @@ const DITHER_FS = `#version 300 es
 precision highp float;
 precision highp int;
 uniform sampler2D u_scene;
+uniform sampler2D u_color;
+uniform int u_natural;
 uniform float u_canvasH;
 uniform float u_dot;
 uniform int u_mode;
@@ -189,8 +253,13 @@ void main() {
     float hi = u_stops[i + 1];
     tone = (k - lo) / (hi - lo) > th ? hi : lo;
   }
+  vec3 pigment = u_ink;
+  if (u_natural == 1) {
+    vec4 c = texelFetch(u_color, tc, 0);
+    pigment = c.rgb / max(c.a, 1e-3);
+  }
   vec3 bgP = u_bg.rgb * u_bg.a; // premultiplied
-  o = vec4(mix(bgP, u_ink, tone), mix(u_bg.a, 1.0, tone));
+  o = vec4(mix(bgP, pigment, tone), mix(u_bg.a, 1.0, tone));
 }`;
 
 function compile(gl, type, src) {
@@ -225,6 +294,9 @@ export function createRenderer(gl) {
   const ditherProg = program(gl, DITHER_VS, DITHER_FS);
   const loc = {
     res: gl.getUniformLocation(sceneProg, 'u_res'),
+    sceneNatural: gl.getUniformLocation(sceneProg, 'u_natural'),
+    color: gl.getUniformLocation(ditherProg, 'u_color'),
+    natural: gl.getUniformLocation(ditherProg, 'u_natural'),
     scene: gl.getUniformLocation(ditherProg, 'u_scene'),
     canvasH: gl.getUniformLocation(ditherProg, 'u_canvasH'),
     dot: gl.getUniformLocation(ditherProg, 'u_dot'),
@@ -251,12 +323,17 @@ export function createRenderer(gl) {
 
   const emptyVao = gl.createVertexArray();
 
-  const tex = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  function makeTex() {
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  }
+  const tex = makeTex(); // ink amount
+  const colorTex = makeTex(); // pigment colour (real koi colours)
   const fbo = gl.createFramebuffer();
   let sceneW = 0;
   let sceneH = 0;
@@ -267,8 +344,12 @@ export function createRenderer(gl) {
     sceneH = h;
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, w, h, 0, gl.RED, gl.UNSIGNED_BYTE, null);
+    gl.bindTexture(gl.TEXTURE_2D, colorTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, colorTex, 0);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
@@ -276,7 +357,8 @@ export function createRenderer(gl) {
     /**
      * frame: { canvasW, canvasH (device px), dot (device px per dot), cssPerDot,
      *          vertices: Float32Array, count, mode: 0|1, ink:[r,g,b], bg:[r,g,b,a],
-     *          stops: [0, ..., 1] ink amount of each palette tone }
+     *          stops: [0, ..., 1] ink amount of each palette tone,
+     *          natural: true for real koi colours instead of the single ink colour }
      */
     render(frame) {
       const sw = Math.max(1, Math.ceil(frame.canvasW / frame.dot));
@@ -286,13 +368,15 @@ export function createRenderer(gl) {
       // Pass 1: scene.
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
       gl.viewport(0, 0, sw, sh);
-      gl.clearColor(0, 0, 0, 1);
+      gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       if (frame.count > 0) {
         gl.useProgram(sceneProg);
         gl.uniform2f(loc.res, sw * frame.cssPerDot, sh * frame.cssPerDot);
+        gl.uniform1i(loc.sceneNatural, frame.natural ? 1 : 0);
         gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        // Colour: normal "over" blending. Alpha: accumulate coverage.
+        gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         gl.bindVertexArray(vao);
         gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
         gl.bufferData(gl.ARRAY_BUFFER, frame.vertices.subarray(0, frame.count * 8), gl.DYNAMIC_DRAW);
@@ -307,6 +391,11 @@ export function createRenderer(gl) {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.uniform1i(loc.scene, 0);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, colorTex);
+      gl.uniform1i(loc.color, 1);
+      gl.uniform1i(loc.natural, frame.natural ? 1 : 0);
+      gl.activeTexture(gl.TEXTURE0);
       gl.uniform1f(loc.canvasH, frame.canvasH);
       gl.uniform1f(loc.dot, frame.dot);
       gl.uniform1i(loc.mode, frame.mode);
@@ -328,6 +417,7 @@ export function createRenderer(gl) {
       gl.deleteVertexArray(vao);
       gl.deleteVertexArray(emptyVao);
       gl.deleteTexture(tex);
+      gl.deleteTexture(colorTex);
       gl.deleteFramebuffer(fbo);
     },
   };

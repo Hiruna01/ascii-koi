@@ -3,7 +3,7 @@
 // One-line setup, no JavaScript needed:
 //   <script src="koi-pond.min.js" data-koi-pond></script>
 // Options as data attributes (all optional):
-//   data-ink="#1a42e2" data-background="#eff5fd" data-mode="lines"
+//   data-colors="koi" data-ink="#1a42e2" data-background="#eff5fd" data-mode="lines"
 //   data-count="12" data-pixel-size="2" data-speed="0.8" data-tones="4" data-target="#hero"
 
 import { createKoiPond, DEFAULTS } from './index.js';
@@ -21,6 +21,7 @@ if (script && script.hasAttribute('data-koi-pond')) {
     ink: d.ink,
     background: d.background,
     mode: d.mode,
+    colors: d.colors,
     tones: num(d.tones),
     count: num(d.count),
     pixelSize: num(d.pixelSize),
