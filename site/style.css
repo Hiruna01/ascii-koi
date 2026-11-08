@@ -319,9 +319,14 @@ html.theme-dark .dock { background: color-mix(in srgb, var(--paper) 92%, #000); 
 .tp-add:hover { background: #1a42e2; color: #fff; }
 
 /* ---------- Fish only: nothing but the pond ---------- */
-.nav, main, .dock { transition: opacity 0.35s ease, visibility 0.35s; }
+.nav, main { transition: opacity 0.35s ease, visibility 0.35s; }
 html.fish-only { overflow: hidden; }
-html.fish-only .nav, html.fish-only main, html.fish-only .dock { opacity: 0; visibility: hidden; pointer-events: none; }
+html.fish-only .nav, html.fish-only main { opacity: 0; visibility: hidden; pointer-events: none; }
+/* In fish-only view the control bar hides below the edge and slides up when the
+   pointer reaches the bottom of the screen. */
+.dock { transition: opacity 0.35s ease, visibility 0.35s, transform 0.35s var(--ease); }
+html.fish-only .dock { opacity: 0; visibility: hidden; pointer-events: none; transform: translate(-50%, 16px); }
+html.fish-only .dock.reveal { opacity: 1; visibility: visible; pointer-events: auto; transform: translateX(-50%); }
 .exit-view {
   position: fixed; top: 16px; right: 16px; z-index: 20;
   display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer;
@@ -366,5 +371,7 @@ html.fish-only .exit-view.visible, html.fish-only .exit-view:focus-visible { opa
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  .dock { transition: opacity 0.2s ease, visibility 0.2s; }
+  html.fish-only .dock { transform: translateX(-50%); }
   .btn, .btn .ico { transition: none; }
 }

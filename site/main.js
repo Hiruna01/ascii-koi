@@ -75,6 +75,7 @@
   document.addEventListener('click', () => openPicker(false));
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !picker.hidden) {
+      e.preventDefault(); // Escape closes the panel only, not fish-only view
       openPicker(false);
       bgBtn.focus();
     }
@@ -171,36 +172,82 @@
   document.addEventListener('click', () => openTypes(false));
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !typesPanel.hidden) {
+      e.preventDefault(); // Escape closes the panel only, not fish-only view
       openTypes(false);
       typesBtn.focus();
     }
   });
 
-  // --- Fish only: hide every page element and leave just the pond.
+  // --- Fish only: hide every page element and leave just the pond. The control
+  // bar hides too, and slides up when the pointer reaches the bottom of the
+  // screen (or for a few seconds after a tap on touch screens).
   const exitBtn = document.querySelector('[data-action="exit-fish-only"]');
+  const dock = document.querySelector('.dock');
+  const fishOnlyBtn = document.querySelector('[data-action="fish-only"]');
+  const enterIcon = fishOnlyBtn.innerHTML;
+  const exitIcon = '<svg class="ico" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M152,96V48a8,8,0,0,1,16,0V88h40a8,8,0,0,1,0,16H160A8,8,0,0,1,152,96ZM96,152H48a8,8,0,0,0,0,16H88v40a8,8,0,0,0,16,0V160A8,8,0,0,0,96,152Zm112,0H160a8,8,0,0,0-8,8v48a8,8,0,0,0,16,0V168h40a8,8,0,0,0,0-16ZM96,40a8,8,0,0,0-8,8V88H48a8,8,0,0,0,0,16H96a8,8,0,0,0,8-8V48A8,8,0,0,0,96,40Z"/></svg>';
+  const EDGE = 120; // px from the bottom of the screen that reveal the bar
   let idleTimer = 0;
+  let hideTimer = 0;
+  const isFishOnly = () => document.documentElement.classList.contains('fish-only');
+  const panelOpen = () => !picker.hidden || !typesPanel.hidden;
   function showExit() {
     exitBtn.classList.add('visible');
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => exitBtn.classList.remove('visible'), 2000);
   }
+  function revealDock(ms) {
+    clearTimeout(hideTimer);
+    hideTimer = 0;
+    dock.classList.add('reveal');
+    if (ms) hideTimer = setTimeout(hideDock, ms);
+  }
+  function hideDock() {
+    clearTimeout(hideTimer);
+    hideTimer = 0;
+    if (panelOpen() || dock.contains(document.activeElement)) return; // still in use
+    dock.classList.remove('reveal');
+  }
+  function onFishOnlyMove(e) {
+    if (e.pointerType === 'touch') return;
+    showExit();
+    const near = e.clientY > innerHeight - EDGE || dock.contains(e.target) || panelOpen();
+    if (near) revealDock();
+    else if (dock.classList.contains('reveal') && !hideTimer) hideTimer = setTimeout(hideDock, 500);
+  }
+  function onFishOnlyTap(e) {
+    if (e.pointerType !== 'touch') return;
+    showExit();
+    revealDock(3500);
+  }
   function setFishOnly(on) {
     openPicker(false);
     openTypes(false);
     document.documentElement.classList.toggle('fish-only', on);
+    fishOnlyBtn.innerHTML = on ? exitIcon : enterIcon;
+    fishOnlyBtn.setAttribute('aria-label', on ? 'Show the page again' : 'Show only the fish');
+    fishOnlyBtn.title = on ? 'Show the page again (Esc)' : 'Show only the fish (Esc to exit)';
+    dock.classList.remove('reveal');
+    clearTimeout(hideTimer);
+    hideTimer = 0;
     if (on) {
       showExit();
-      window.addEventListener('pointermove', showExit, { passive: true });
+      window.addEventListener('pointermove', onFishOnlyMove, { passive: true });
+      window.addEventListener('pointerdown', onFishOnlyTap, { passive: true });
     } else {
-      window.removeEventListener('pointermove', showExit);
+      window.removeEventListener('pointermove', onFishOnlyMove);
+      window.removeEventListener('pointerdown', onFishOnlyTap);
       exitBtn.classList.remove('visible');
       clearTimeout(idleTimer);
     }
   }
-  document.querySelector('[data-action="fish-only"]').addEventListener('click', () => setFishOnly(true));
+  // Keyboard users: tabbing into the bar shows it.
+  dock.addEventListener('focusin', () => { if (isFishOnly()) revealDock(); });
+  dock.addEventListener('focusout', () => { if (isFishOnly()) setTimeout(hideDock, 0); });
+  fishOnlyBtn.addEventListener('click', () => setFishOnly(!isFishOnly()));
   exitBtn.addEventListener('click', () => setFishOnly(false));
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && document.documentElement.classList.contains('fish-only')) setFishOnly(false);
+    if (e.key === 'Escape' && !e.defaultPrevented && isFishOnly()) setFishOnly(false);
   });
 
   const modeButtons = document.querySelectorAll('[data-mode]');
