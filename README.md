@@ -10,11 +10,20 @@ swim behind your content; put your pointer on a fish and it darts away.
 - Page stays clickable (the canvas ignores pointer events and only reads the pointer position)
 - Pauses in background tabs, slows down for `prefers-reduced-motion`
 
-The showcase site is in [`site/`](site/).
+**Live showcase:** https://hiruna01.github.io/ascii-koi/ (source in [`site/`](site/), deployed to
+GitHub Pages by [`.github/workflows/pages.yml`](.github/workflows/pages.yml) on every push to `main`).
 
 ## Use it
 
 ### Script tag
+
+Straight from the CDN (jsDelivr serves files from this GitHub repo):
+
+```html
+<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond></script>
+```
+
+Or download [`dist/koi-pond.min.js`](dist/koi-pond.min.js), host it yourself, and:
 
 ```html
 <script src="koi-pond.min.js" data-koi-pond></script>
