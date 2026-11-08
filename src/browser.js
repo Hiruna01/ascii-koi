@@ -30,6 +30,8 @@ if (script && script.hasAttribute('data-koi-pond')) {
     fishScale: num(d.fishScale),
     butterfly: num(d.butterfly),
     varieties: d.varieties,
+    behavior: d.behavior,
+    feeding: d.feeding != null ? d.feeding !== 'false' : undefined,
     seed: num(d.seed),
   };
   for (const k of Object.keys(opts)) if (opts[k] === undefined) delete opts[k];

@@ -39,7 +39,9 @@ export const DEFAULTS = Object.freeze({
   speed: 1, // swimming speed multiplier
   dartBoost: 1.5, // extra speed while darting (1.5 = up to 2.5x normal)
   dartDuration: 1, // seconds until a dart has mostly faded
-  interactive: true, // dart when the pointer is on a fish
+  interactive: true, // fish react to the pointer
+  behavior: 'natural', // 'natural': curious, wary or startled depending on how you move; 'simple': startle on touch only
+  feeding: false, // a left click or tap on an empty part of the page drops food
   maxDpr: 2, // cap for devicePixelRatio
   reducedMotion: 'auto', // 'auto' slows everything down if the user prefers reduced motion
   zIndex: -1, // z-index of the full-page canvas
@@ -165,11 +167,54 @@ export function createKoiPond(options = {}) {
   let last = 0;
   let time = 0;
   let onScreen = true;
-  const pointer = { x: 0, y: 0, active: false };
+  const pointer = { x: 0, y: 0, active: false, speed: 0, t: 0 };
+
+  // --- Food pellets (feeding option). A click drops a small cluster that
+  // floats for a moment, then sinks and fades; fish race to eat it.
+  const FOOD_LIFE = 10; // seconds until a pellet has sunk out of sight
+  const MAX_FOOD = 15;
+  const food = []; // { x, y, t0, age, eaten, vx, vy }
+  // Clicks on these never drop food (and neither do clicks on text).
+  const NO_FEED =
+    'a,button,input,select,textarea,label,summary,option,[role="button"],[role="link"],' +
+    '[role="tab"],[contenteditable=""],[contenteditable="true"],[data-koi-no-feed]';
+  function feedAllowed(el) {
+    if (!el || el.nodeType !== 1) return true;
+    if (el.closest(NO_FEED)) return false;
+    for (const n of el.childNodes) if (n.nodeType === 3 && n.textContent.trim()) return false;
+    return true;
+  }
+  function dropFood(x, y) {
+    const n = 3;
+    for (let i = 0; i < n; i++) {
+      const a = rng() * Math.PI * 2;
+      const r = 4 + rng() * 10;
+      food.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r, t0: time, age: 0, eaten: false,
+        vx: (rng() - 0.5) * 6, vy: (rng() - 0.5) * 6 });
+    }
+    while (food.length > MAX_FOOD) food.shift();
+    ensureVertices();
+  }
+  function stepFood(dt) {
+    for (let i = food.length - 1; i >= 0; i--) {
+      const p = food[i];
+      p.age = time - p.t0;
+      if (p.eaten || p.age > FOOD_LIFE) food.splice(i, 1);
+      else {
+        p.x += p.vx * dt; // a slow drift on the water
+        p.y += p.vy * dt;
+      }
+    }
+  }
 
   function fishSize() {
     const base = opts.fishSize === 'auto' ? defaultFishSize(bounds.width, bounds.height) : +opts.fishSize;
     return base * Math.max(0.1, +opts.fishScale || 1);
+  }
+
+  function ensureVertices() {
+    const need = (fishes.length * VERTICES_PER_FISH + MAX_FOOD * 6) * FLOATS_PER_VERTEX;
+    if (vertices.length < need) vertices = new Float32Array(need);
   }
 
   function syncFishCount() {
@@ -178,7 +223,7 @@ export function createKoiPond(options = {}) {
     const allowed = resolveVarieties(opts.varieties);
     while (fishes.length < n) fishes.push(createFish(rng, bounds, size, +opts.butterfly || 0, allowed));
     if (fishes.length > n) fishes.length = n;
-    const need = n * VERTICES_PER_FISH * FLOATS_PER_VERTEX;
+    const need = (n * VERTICES_PER_FISH + MAX_FOOD * 6) * FLOATS_PER_VERTEX;
     if (vertices.length < need) vertices = new Float32Array(need);
   }
 
@@ -225,7 +270,7 @@ export function createKoiPond(options = {}) {
   function draw() {
     if (!renderer) return;
     const dot = Math.max(1, Math.round(opts.pixelSize * dpr));
-    const count = buildGeometry(fishes, vertices);
+    const count = buildGeometry(fishes, vertices, food);
     renderer.render({
       canvasW: canvas.width,
       canvasH: canvas.height,
@@ -260,8 +305,12 @@ export function createKoiPond(options = {}) {
       bounds,
       fishes,
       pointer: opts.interactive ? pointer : null,
+      food: opts.feeding ? food : null,
+      behavior: opts.behavior,
       rng,
     };
+    pointer.speed *= Math.exp(-dt / 0.12); // the pointer's speed fades when it stops
+    stepFood(dt);
     if (opts.still) {
       // Hover in place: a gentle tail beat and sculling fins, no travel.
       const k = stepOpts.speed;
@@ -283,9 +332,33 @@ export function createKoiPond(options = {}) {
   // --- Pointer (listened on window so page content stays clickable).
   function updatePointer(e) {
     const r = canvas.getBoundingClientRect();
-    pointer.x = e.clientX - r.left;
-    pointer.y = e.clientY - r.top;
-    pointer.active = pointer.x >= 0 && pointer.y >= 0 && pointer.x <= r.width && pointer.y <= r.height;
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    const now = e.timeStamp || performance.now();
+    if (e.type === 'pointermove' && pointer.active && pointer.t) {
+      // How fast the pointer moves (CSS px per second), smoothed.
+      const dt = Math.max(4, now - pointer.t) / 1000;
+      const v = Math.hypot(x - pointer.x, y - pointer.y) / dt;
+      pointer.speed = pointer.speed * 0.5 + Math.min(v, 4000) * 0.5;
+    } else if (e.type === 'pointerdown') {
+      pointer.speed = 0; // a tap is not a fast movement
+    }
+    pointer.t = now;
+    pointer.x = x;
+    pointer.y = y;
+    pointer.active = x >= 0 && y >= 0 && x <= r.width && y <= r.height;
+  }
+
+  // Feeding: a left click or tap on an empty part of the page drops food.
+  function onFeedDown(e) {
+    if (!opts.feeding || e.button !== 0 || destroyed) return;
+    if (!feedAllowed(e.target)) return;
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    if (x < 0 || y < 0 || x > r.width || y > r.height) return;
+    dropFood(x, y);
+    if (!running) draw();
   }
   function onPointerUp(e) {
     if (e.pointerType !== 'mouse') pointer.active = false;
@@ -330,6 +403,7 @@ export function createKoiPond(options = {}) {
   if (ok) {
     window.addEventListener('pointermove', updatePointer, { passive: true });
     window.addEventListener('pointerdown', updatePointer, { passive: true });
+    window.addEventListener('pointerdown', onFeedDown, { passive: true });
     window.addEventListener('pointerup', onPointerUp, { passive: true });
     window.addEventListener('pointercancel', onPointerUp, { passive: true });
     document.addEventListener('pointerout', onPointerOut, { passive: true });
@@ -363,10 +437,15 @@ export function createKoiPond(options = {}) {
       enterFromEdge(f, bounds, rng);
       fishes.push(f);
       opts.count = fishes.length;
-      const need = fishes.length * VERTICES_PER_FISH * FLOATS_PER_VERTEX;
-      if (vertices.length < need) vertices = new Float32Array(need * 1.5);
+      ensureVertices();
       if (!running) draw();
       return f;
+    },
+    /** Drop a little food at (x, y), in CSS pixels of the pond. */
+    feed(x, y) {
+      dropFood(x, y);
+      if (!running) draw();
+      return api;
     },
     get fishes() {
       return fishes;
@@ -420,6 +499,7 @@ export function createKoiPond(options = {}) {
       api.pause();
       window.removeEventListener('pointermove', updatePointer);
       window.removeEventListener('pointerdown', updatePointer);
+      window.removeEventListener('pointerdown', onFeedDown);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
       document.removeEventListener('pointerout', onPointerOut);

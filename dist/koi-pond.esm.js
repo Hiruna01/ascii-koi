@@ -1,4 +1,4 @@
-/*! koi-pond v1.0.0 | MIT */
+/*! koi-pond v1.1.0 | MIT */
 
 // src/sim.js
 var TAU = Math.PI * 2;
@@ -213,6 +213,18 @@ function createFish(rng, bounds, size, butterfly = 0, allowed = null) {
     seed: rng(),
     depth: rng() < 0.3 ? 0.45 + rng() * 0.4 : rng() * 0.25,
     // deeper fish are paler
+    boldness: rng(),
+    // 0 shy .. 1 bold: how close it lets you come, how curious it is
+    fear: 1,
+    // 1 = not used to you yet; drops after each fright, slowly comes back
+    curious: 0,
+    // seconds left of being curious about the pointer
+    bored: 0,
+    // seconds before it can get curious again
+    alarm: null,
+    // a neighbour's fright reaching this fish: { t, strength, x, y }
+    avoid: null,
+    // a spot to keep away from for a while: { x, y, until }
     variety,
     varRoll,
     // fixed per fish: picks the variety among the allowed ones
@@ -243,6 +255,156 @@ function hitTest(fish, px2, py2, pad = 6) {
     if (cx * cx + cy * cy <= w * w) return true;
   }
   return false;
+}
+function startle(fish, strength = 1, away = null) {
+  const rand = fish.rand;
+  if (fish.burst < 0.35) {
+    let side;
+    if (away == null) {
+      side = rand() < 0.5 ? -1 : 1;
+      fish.heading = fish.angle + side * (0.5 + rand() * 0.6);
+    } else {
+      side = angleDiff(away, fish.angle) >= 0 ? 1 : -1;
+      fish.heading = away + (rand() - 0.5) * 0.6;
+    }
+    fish.flick = side * (1.6 + rand() * 1) * (0.6 + 0.4 * strength);
+    fish.amp = Math.max(fish.amp, 1.1);
+    fish.rest = 0;
+  }
+  fish.burst = Math.max(fish.burst, strength);
+}
+function spreadAlarm(fish, fishes, x, y, strength, time) {
+  if (!fishes || strength < 0.25) return;
+  const mid = (SPINE_SEGMENTS >> 1) * 2;
+  for (const o2 of fishes) {
+    if (o2 === fish || o2.alarm || o2.burst > 0.35) continue;
+    const d = Math.hypot(o2.spine[mid] - fish.spine[mid], o2.spine[mid + 1] - fish.spine[mid + 1]);
+    const reach = 2.6 * Math.max(fish.length, o2.length);
+    if (d > reach) continue;
+    o2.alarm = {
+      t: time + 0.12 + o2.rand() * 0.22 + d / 1500,
+      // reaction time, plus the wave travelling
+      strength: strength * (0.75 + 0.25 * (1 - o2.boldness)) * (1 - 0.4 * (d / reach)),
+      x,
+      y
+    };
+  }
+}
+function senses(fish, dt, time, opts, hx, hy) {
+  const { fishes, pointer, food } = opts;
+  const L = fish.length;
+  const rand = fish.rand;
+  const out2 = { urge: 0, angle: 0, speedMul: 1 };
+  const simple = opts.behavior === "simple";
+  fish.fear = Math.min(1, fish.fear + dt / 45);
+  fish.bored = Math.max(0, fish.bored - dt);
+  if (fish.curious > 0) {
+    fish.curious -= dt;
+    if (fish.curious <= 0) {
+      fish.curious = 0;
+      fish.bored = 4 + rand() * 6;
+    }
+  }
+  if (!simple && fish.alarm && time >= fish.alarm.t) {
+    const a = fish.alarm;
+    fish.alarm = null;
+    if (fish.burst < 0.35 && a.strength > 0.2) {
+      startle(fish, a.strength, Math.atan2(hy - a.y, hx - a.x));
+      fish.avoid = { x: a.x, y: a.y, until: time + 2.5 };
+      fish.curious = 0;
+      spreadAlarm(fish, fishes, a.x, a.y, a.strength * 0.6, time);
+    }
+  }
+  if (pointer && pointer.active) {
+    const dx = hx - pointer.x;
+    const dy = hy - pointer.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const speed = pointer.speed || 0;
+    const touching = hitTest(fish, pointer.x, pointer.y);
+    const away = Math.atan2(dy, dx);
+    if (simple) {
+      if (touching) startle(fish, 1);
+    } else {
+      const R = L * (1.6 + 1.2 * (1 - fish.boldness));
+      const close = clamp(1 - d / R, 0, 1);
+      const fast = smoothstep(150, 900, speed);
+      let threat = touching ? 0.75 + 0.25 * fast : close * close * fast * 1.6;
+      threat *= (0.35 + 0.65 * fish.fear) * (1.2 - 0.4 * fish.boldness);
+      if (threat > 0.5 && fish.burst < 0.35) {
+        const strength = Math.min(1, threat);
+        startle(fish, strength, away);
+        fish.fear = Math.max(0.25, fish.fear - 0.18);
+        fish.avoid = { x: pointer.x, y: pointer.y, until: time + 3 + 2 * (1 - fish.boldness) };
+        fish.curious = 0;
+        fish.bored = 4;
+        spreadAlarm(fish, fishes, pointer.x, pointer.y, strength * 0.6, time);
+      } else if (threat > 0.15) {
+        out2.urge = smoothstep(0.15, 0.5, threat);
+        out2.angle = away;
+        out2.speedMul = 1.35;
+        fish.curious = 0;
+      } else if (fish.curious <= 0 && fish.bored <= 0 && !fish.avoid && speed < 80 && d < R * 2.4 && rand() < dt * (0.15 + 0.9 * fish.boldness)) {
+        fish.curious = 3 + rand() * 5;
+      }
+      if (fish.curious > 0) {
+        if (speed > 260) {
+          fish.curious = 0;
+          fish.bored = 2;
+        } else {
+          const stop = L * 0.55;
+          out2.urge = 0.85;
+          out2.angle = Math.atan2(-dy, -dx);
+          out2.speedMul = d < stop * 1.6 ? 0.12 : d < stop * 3 ? 0.5 : 0.9;
+          fish.rest = 0;
+        }
+      }
+    }
+  } else {
+    fish.curious = 0;
+  }
+  if (fish.avoid) {
+    if (time > fish.avoid.until) {
+      fish.avoid = null;
+    } else if (fish.curious <= 0) {
+      const dx = hx - fish.avoid.x;
+      const dy = hy - fish.avoid.y;
+      const d = Math.hypot(dx, dy);
+      const r = L * 3;
+      if (d < r) {
+        const k = (1 - d / r) * 0.8;
+        if (k > out2.urge) {
+          out2.urge = k;
+          out2.angle = Math.atan2(dy, dx);
+        }
+      }
+    }
+  }
+  if (food && food.length && fish.burst < 0.3) {
+    const reach = L * (4 + 2 * fish.boldness);
+    let best = null;
+    let bestD = reach;
+    for (const p of food) {
+      if (p.eaten || p.age < 0.25) continue;
+      const d = Math.hypot(p.x - hx, p.y - hy);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    if (best) {
+      fish.curious = 0;
+      fish.rest = 0;
+      out2.urge = 0.95;
+      out2.angle = Math.atan2(best.y - hy, best.x - hx);
+      out2.speedMul = bestD < L * 0.8 ? 0.7 : 1.5;
+      if (bestD < L * 0.14 + 4) {
+        best.eaten = true;
+        fish.speed *= 0.7;
+        fish.decide = 1 + rand() * 2;
+      }
+    }
+  }
+  return out2;
 }
 function stepFish(fish, dt, time, opts) {
   const { bounds, fishes, pointer } = opts;
@@ -290,15 +452,14 @@ function stepFish(fish, dt, time, opts) {
       }
     }
   }
-  if (pointer && pointer.active && hitTest(fish, pointer.x, pointer.y)) {
-    if (fish.burst < 0.35) {
-      const side = rand() < 0.5 ? -1 : 1;
-      fish.flick = side * (1.6 + rand() * 1);
-      fish.heading = fish.angle + side * (0.5 + rand() * 0.6);
-      fish.amp = Math.max(fish.amp, 1.1);
-      fish.rest = 0;
-    }
-    fish.burst = 1;
+  const sensed = senses(fish, dt, time, opts, hx, hy);
+  const speedMul = sensed.speedMul;
+  if (sensed.urge > 0) {
+    want = want * (1 - sensed.urge) + angleDiff(sensed.angle, fish.angle) * sensed.urge * 1.6;
+  }
+  if (edge > 0.3) {
+    const toC = Math.atan2(bounds.height / 2 - hy, bounds.width / 2 - hx);
+    want = want * (1 - edge) + angleDiff(toC, fish.angle) * edge;
   }
   fish.burst *= Math.exp(-dt / Math.max(0.05, opts.dartDuration * 0.45));
   fish.flick *= Math.exp(-dt / 0.15);
@@ -308,7 +469,7 @@ function stepFish(fish, dt, time, opts) {
   fish.turn += (turnTarget - fish.turn) * (1 - Math.exp(-dt * 2.5));
   fish.angle += (fish.turn + fish.flick) * dt;
   const cruise = fish.baseSpeed * opts.speed;
-  const target = fish.burst > 0.02 ? cruise * (1 + opts.dartBoost * fish.burst) : fish.rest > 0 ? cruise * 0.22 : cruise;
+  const target = fish.burst > 0.02 ? cruise * (1 + opts.dartBoost * fish.burst) : fish.rest > 0 && speedMul === 1 ? cruise * 0.22 : cruise * speedMul;
   if (fish.burst > 0.05 || Math.abs(want) > 0.9) {
     fish.beating = true;
   } else if (fish.beating && fish.speed > target * 1.15) {
@@ -527,11 +688,21 @@ function writeFish(f) {
     );
   }
 }
-function buildGeometry(fishes, buffer) {
+var pelletMeta = { seed: 0, depth: 0, variety: 0, longFin: false };
+function writePellet(p) {
+  const sink = Math.min(1, Math.max(0, (p.age - 2.5) / 7.5));
+  const r = 4.4 * (1 - 0.35 * sink);
+  pelletMeta.depth = sink;
+  quad(p.x - r, p.y - r, p.x - r, p.y + r, p.x + r, p.y - r, p.x + r, p.y + r, 0, 1, 3, pelletMeta);
+}
+function buildGeometry(fishes, buffer, food = null) {
   out = buffer;
   o = 0;
   const order = fishes.slice().sort((a, b) => b.depth - a.depth);
   for (const f of order) writeFish(f);
+  if (food) {
+    for (const p of food) if (!p.eaten) writePellet(p);
+  }
   return o / FLOATS_PER_VERTEX;
 }
 
@@ -623,7 +794,14 @@ void main() {
   vec3 col;    // real koi colour
   float a;
 
-  if (kind < 0.5) {
+  if (kind > 2.5) {
+    // ---------- Food pellet: a small brown crumb that sinks and fades ----------
+    float r = length(vec2(u * 2.0 - 1.0, v));
+    a = (1.0 - smoothstep(0.55, 1.0, r)) * (1.0 - 0.8 * depth); // depth = how far it has sunk
+    col = vec3(0.58, 0.4, 0.22);
+    ink = 0.75;
+    amt = 0.9;
+  } else if (kind < 0.5) {
     // ---------- Body ----------
     // The quad is a little wider than the body: the outer band is a faint halo.
     float av = abs(v) * 1.16;
@@ -1053,7 +1231,11 @@ var DEFAULTS = Object.freeze({
   dartDuration: 1,
   // seconds until a dart has mostly faded
   interactive: true,
-  // dart when the pointer is on a fish
+  // fish react to the pointer
+  behavior: "natural",
+  // 'natural': curious, wary or startled depending on how you move; 'simple': startle on touch only
+  feeding: false,
+  // a left click or tap on an empty part of the page drops food
   maxDpr: 2,
   // cap for devicePixelRatio
   reducedMotion: "auto",
@@ -1089,7 +1271,7 @@ function toneStops(n) {
   for (let i = 1; i <= count; i++) stops.push(Math.pow(i / count, 0.85));
   return stops;
 }
-var VERSION = true ? "1.0.0" : "dev";
+var VERSION = true ? "1.1.0" : "dev";
 var PAPER = "#eff5fd";
 var POND = "#0d2a30";
 function backgroundFor(opts) {
@@ -1163,10 +1345,53 @@ function createKoiPond(options = {}) {
   let last = 0;
   let time = 0;
   let onScreen = true;
-  const pointer = { x: 0, y: 0, active: false };
+  const pointer = { x: 0, y: 0, active: false, speed: 0, t: 0 };
+  const FOOD_LIFE = 10;
+  const MAX_FOOD = 15;
+  const food = [];
+  const NO_FEED = 'a,button,input,select,textarea,label,summary,option,[role="button"],[role="link"],[role="tab"],[contenteditable=""],[contenteditable="true"],[data-koi-no-feed]';
+  function feedAllowed(el) {
+    if (!el || el.nodeType !== 1) return true;
+    if (el.closest(NO_FEED)) return false;
+    for (const n of el.childNodes) if (n.nodeType === 3 && n.textContent.trim()) return false;
+    return true;
+  }
+  function dropFood(x, y) {
+    const n = 3;
+    for (let i = 0; i < n; i++) {
+      const a = rng() * Math.PI * 2;
+      const r = 4 + rng() * 10;
+      food.push({
+        x: x + Math.cos(a) * r,
+        y: y + Math.sin(a) * r,
+        t0: time,
+        age: 0,
+        eaten: false,
+        vx: (rng() - 0.5) * 6,
+        vy: (rng() - 0.5) * 6
+      });
+    }
+    while (food.length > MAX_FOOD) food.shift();
+    ensureVertices();
+  }
+  function stepFood(dt) {
+    for (let i = food.length - 1; i >= 0; i--) {
+      const p = food[i];
+      p.age = time - p.t0;
+      if (p.eaten || p.age > FOOD_LIFE) food.splice(i, 1);
+      else {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+      }
+    }
+  }
   function fishSize() {
     const base = opts.fishSize === "auto" ? defaultFishSize(bounds.width, bounds.height) : +opts.fishSize;
     return base * Math.max(0.1, +opts.fishScale || 1);
+  }
+  function ensureVertices() {
+    const need = (fishes.length * VERTICES_PER_FISH + MAX_FOOD * 6) * FLOATS_PER_VERTEX;
+    if (vertices.length < need) vertices = new Float32Array(need);
   }
   function syncFishCount() {
     const n = Math.max(0, Math.floor(opts.count));
@@ -1174,7 +1399,7 @@ function createKoiPond(options = {}) {
     const allowed = resolveVarieties(opts.varieties);
     while (fishes.length < n) fishes.push(createFish(rng, bounds, size, +opts.butterfly || 0, allowed));
     if (fishes.length > n) fishes.length = n;
-    const need = n * VERTICES_PER_FISH * FLOATS_PER_VERTEX;
+    const need = (n * VERTICES_PER_FISH + MAX_FOOD * 6) * FLOATS_PER_VERTEX;
     if (vertices.length < need) vertices = new Float32Array(need);
   }
   function regenerate() {
@@ -1217,7 +1442,7 @@ function createKoiPond(options = {}) {
   function draw() {
     if (!renderer) return;
     const dot = Math.max(1, Math.round(opts.pixelSize * dpr));
-    const count = buildGeometry(fishes, vertices);
+    const count = buildGeometry(fishes, vertices, food);
     renderer.render({
       canvasW: canvas.width,
       canvasH: canvas.height,
@@ -1250,8 +1475,12 @@ function createKoiPond(options = {}) {
       bounds,
       fishes,
       pointer: opts.interactive ? pointer : null,
+      food: opts.feeding ? food : null,
+      behavior: opts.behavior,
       rng
     };
+    pointer.speed *= Math.exp(-dt / 0.12);
+    stepFood(dt);
     if (opts.still) {
       const k = stepOpts.speed;
       for (const f of fishes) {
@@ -1269,9 +1498,30 @@ function createKoiPond(options = {}) {
   }
   function updatePointer(e) {
     const r = canvas.getBoundingClientRect();
-    pointer.x = e.clientX - r.left;
-    pointer.y = e.clientY - r.top;
-    pointer.active = pointer.x >= 0 && pointer.y >= 0 && pointer.x <= r.width && pointer.y <= r.height;
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    const now = e.timeStamp || performance.now();
+    if (e.type === "pointermove" && pointer.active && pointer.t) {
+      const dt = Math.max(4, now - pointer.t) / 1e3;
+      const v = Math.hypot(x - pointer.x, y - pointer.y) / dt;
+      pointer.speed = pointer.speed * 0.5 + Math.min(v, 4e3) * 0.5;
+    } else if (e.type === "pointerdown") {
+      pointer.speed = 0;
+    }
+    pointer.t = now;
+    pointer.x = x;
+    pointer.y = y;
+    pointer.active = x >= 0 && y >= 0 && x <= r.width && y <= r.height;
+  }
+  function onFeedDown(e) {
+    if (!opts.feeding || e.button !== 0 || destroyed) return;
+    if (!feedAllowed(e.target)) return;
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    if (x < 0 || y < 0 || x > r.width || y > r.height) return;
+    dropFood(x, y);
+    if (!running) draw();
   }
   function onPointerUp(e) {
     if (e.pointerType !== "mouse") pointer.active = false;
@@ -1310,6 +1560,7 @@ function createKoiPond(options = {}) {
   if (ok) {
     window.addEventListener("pointermove", updatePointer, { passive: true });
     window.addEventListener("pointerdown", updatePointer, { passive: true });
+    window.addEventListener("pointerdown", onFeedDown, { passive: true });
     window.addEventListener("pointerup", onPointerUp, { passive: true });
     window.addEventListener("pointercancel", onPointerUp, { passive: true });
     document.addEventListener("pointerout", onPointerOut, { passive: true });
@@ -1342,10 +1593,15 @@ function createKoiPond(options = {}) {
       enterFromEdge(f, bounds, rng);
       fishes.push(f);
       opts.count = fishes.length;
-      const need = fishes.length * VERTICES_PER_FISH * FLOATS_PER_VERTEX;
-      if (vertices.length < need) vertices = new Float32Array(need * 1.5);
+      ensureVertices();
       if (!running) draw();
       return f;
+    },
+    /** Drop a little food at (x, y), in CSS pixels of the pond. */
+    feed(x, y) {
+      dropFood(x, y);
+      if (!running) draw();
+      return api;
     },
     get fishes() {
       return fishes;
@@ -1398,6 +1654,7 @@ function createKoiPond(options = {}) {
       api.pause();
       window.removeEventListener("pointermove", updatePointer);
       window.removeEventListener("pointerdown", updatePointer);
+      window.removeEventListener("pointerdown", onFeedDown);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
       document.removeEventListener("pointerout", onPointerOut);

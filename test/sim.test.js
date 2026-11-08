@@ -13,6 +13,7 @@ import {
   pickVariety,
   resolveVarieties,
   scaleFish,
+  startle,
   stepFish,
 } from '../src/sim.js';
 import { FLOATS_PER_VERTEX, VERTICES_PER_FISH, buildGeometry } from '../src/geometry.js';
@@ -73,29 +74,119 @@ test('hitTest finds points on the body and misses points beside it', () => {
   assert.equal(hitTest(f, 100, 100), false);
 });
 
-test('a fish darts (speeds up) when the pointer is on it, then calms down', () => {
+test('a fast pointer on a fish startles it away from the pointer, then it calms down', () => {
   const f = createFish(mulberry32(5), bounds, 120);
+  f.boldness = 0.5;
   placeFish(f, 600, 400, 0);
   const o = opts({ fishes: [f] });
   for (let k = 0; k < 120; k++) stepFish(f, 1 / 60, k / 60, o);
   const cruising = f.baseSpeed;
 
-  // Put the pointer on the middle of the body.
-  const px = f.spine[(SPINE_SEGMENTS >> 1) * 2];
-  const py = f.spine[(SPINE_SEGMENTS >> 1) * 2 + 1];
-  stepFish(f, 1 / 60, 2, { ...o, pointer: { x: px, y: py, active: true } });
-  assert.ok(f.burst > 0.95, `burst ${f.burst}`);
-  assert.ok(Math.abs(f.flick) > 1.5, 'startle starts with a quick bend');
+  // Sweep the pointer fast across the middle of the body.
+  const mid = (SPINE_SEGMENTS >> 1) * 2;
+  const px = f.spine[mid];
+  const py = f.spine[mid + 1];
+  stepFish(f, 1 / 60, 2, { ...o, pointer: { x: px, y: py + 4, active: true, speed: 900 } });
+  assert.ok(f.burst > 0.75, `burst ${f.burst}`);
+  assert.ok(Math.abs(f.flick) > 1.0, 'startle starts with a quick bend');
+  const away = Math.atan2(f.spine[1] - (py + 4), f.spine[0] - px);
+  assert.ok(Math.abs(angleDiff(f.heading, away)) < 0.5, 'flees away from the pointer');
   let peak = 0;
   for (let k = 0; k < 60; k++) {
     stepFish(f, 1 / 60, 2 + k / 60, o);
     peak = Math.max(peak, f.speed);
   }
-  assert.ok(peak > cruising * 1.7, `dart speed ${peak} vs cruising ${cruising}`);
+  assert.ok(peak > cruising * 1.5, `dart speed ${peak} vs cruising ${cruising}`);
   assert.ok(peak < cruising * 3.2, `dart stays gentle: ${peak} vs cruising ${cruising}`);
 
   for (let k = 0; k < 60 * 6; k++) stepFish(f, 1 / 60, 3 + k / 60, o);
   assert.ok(f.speed < cruising * 1.6, `speed after calming ${f.speed}`);
+});
+
+test('a slow pointer makes a bold fish come over and hover', () => {
+  const f = createFish(mulberry32(8), bounds, 110);
+  f.boldness = 1;
+  placeFish(f, 500, 400, 0);
+  const pointer = { x: 680, y: 430, active: true, speed: 0 };
+  const o = opts({ fishes: [f], pointer });
+  let closest = Infinity;
+  for (let k = 0; k < 60 * 8; k++) {
+    stepFish(f, 1 / 60, k / 60, o);
+    closest = Math.min(closest, Math.hypot(f.spine[0] - pointer.x, f.spine[1] - pointer.y));
+  }
+  assert.ok(closest < f.length * 0.9, `came within ${closest.toFixed(1)} px (length ${f.length.toFixed(1)})`);
+  assert.equal(f.burst < 0.1, true, 'a slow hand does not frighten it');
+});
+
+test('a medium-speed pointer nearby makes the fish turn away calmly, without a startle', () => {
+  const f = createFish(mulberry32(9), bounds, 110);
+  f.boldness = 0.5;
+  placeFish(f, 600, 400, 0);
+  const pointer = { x: 600 + f.length * 0.9, y: 400, active: true, speed: 520 };
+  const o = opts({ fishes: [f], pointer });
+  for (let k = 0; k < 40; k++) stepFish(f, 1 / 60, k / 60, o);
+  assert.ok(f.burst < 0.3, `no startle: burst ${f.burst}`);
+  assert.ok(Math.abs(angleDiff(f.angle, 0)) > 0.4, `turned away from straight ahead: ${f.angle}`);
+});
+
+test('fish get used to the pointer: repeated frights get weaker, and fear comes back', () => {
+  const f = createFish(mulberry32(12), bounds, 110);
+  f.boldness = 0.5;
+  const strengths = [];
+  for (let i = 0; i < 4; i++) {
+    placeFish(f, 600, 400, 0);
+    f.burst = 0;
+    f.avoid = null;
+    const mid = (SPINE_SEGMENTS >> 1) * 2;
+    stepFish(f, 1 / 60, i * 5, opts({ fishes: [f], pointer: { x: f.spine[mid], y: f.spine[mid + 1], active: true, speed: 400 } }));
+    strengths.push(f.burst);
+    for (let k = 0; k < 120; k++) stepFish(f, 1 / 60, i * 5 + k / 60, opts({ fishes: [f] }));
+  }
+  assert.ok(strengths[3] < strengths[0] - 0.1, `frights get weaker: ${strengths.map((x) => x.toFixed(2))}`);
+  const fear = f.fear;
+  for (let k = 0; k < 60 * 30; k++) stepFish(f, 1 / 60, 30 + k / 60, opts({ fishes: [f] }));
+  assert.ok(f.fear > fear + 0.3, `fear comes back: ${fear.toFixed(2)} -> ${f.fear.toFixed(2)}`);
+});
+
+test("a fright spreads to a neighbour a moment later", () => {
+  const rng = mulberry32(21);
+  const a = createFish(rng, bounds, 110);
+  const b = createFish(rng, bounds, 110);
+  a.boldness = b.boldness = 0.5;
+  placeFish(a, 600, 400, 0);
+  placeFish(b, 600, 470, 0);
+  const fishes = [a, b];
+  const mid = (SPINE_SEGMENTS >> 1) * 2;
+  stepFish(a, 1 / 60, 0, opts({ fishes, pointer: { x: a.spine[mid], y: a.spine[mid + 1], active: true, speed: 900 } }));
+  assert.ok(a.burst > 0.5, 'first fish startles');
+  assert.ok(b.alarm && b.alarm.t > 0, 'its neighbour is about to react');
+  assert.ok(b.burst < 0.1, 'but not instantly');
+  for (let k = 1; k < 40; k++) {
+    stepFish(a, 1 / 60, k / 60, opts({ fishes }));
+    stepFish(b, 1 / 60, k / 60, opts({ fishes }));
+  }
+  assert.ok(b.burst > 0.2 || b.speed > b.baseSpeed * 1.3, `neighbour reacted: burst ${b.burst}`);
+});
+
+test('fish find food, race to it and eat it', () => {
+  const f = createFish(mulberry32(31), bounds, 110);
+  placeFish(f, 500, 400, 0);
+  const food = [{ x: 500 + f.length * 2.2, y: 470, age: 1, eaten: false }];
+  for (let k = 0; k < 60 * 6 && !food[0].eaten; k++) stepFish(f, 1 / 60, k / 60, opts({ fishes: [f], food }));
+  assert.equal(food[0].eaten, true);
+});
+
+test("behavior 'simple' keeps the old touch-only startle", () => {
+  const f = createFish(mulberry32(5), bounds, 120);
+  placeFish(f, 600, 400, 0);
+  const mid = (SPINE_SEGMENTS >> 1) * 2;
+  // A slow pointer near (not on) the fish: nothing happens in simple mode.
+  const near = { x: f.spine[mid], y: f.spine[mid + 1] + f.length * 0.6, active: true, speed: 0 };
+  for (let k = 0; k < 120; k++) stepFish(f, 1 / 60, k / 60, opts({ fishes: [f], pointer: near, behavior: 'simple' }));
+  assert.equal(f.curious, 0);
+  placeFish(f, 600, 400, 0);
+  stepFish(f, 1 / 60, 3, opts({ fishes: [f], pointer: { x: f.spine[mid], y: f.spine[mid + 1], active: true }, behavior: 'simple' }));
+  assert.ok(f.burst > 0.95);
 });
 
 test('swimming alternates between tail beats and glides', () => {

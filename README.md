@@ -3,7 +3,7 @@
 A dithered koi pond for your website background. Koi made of ordered-dither dots
 swim behind your content; put your pointer on a fish and it darts away.
 
-- WebGL2, no dependencies, about 13 KB gzipped
+- WebGL2, no dependencies, about 15 KB gzipped
 - Multi-tone Bayer dot or line-screen dithering (paper, pale, light, mid and deep ink)
 - 17 real koi varieties with markings, scales, eyes and translucent fins: Kohaku, Taisho Sanke,
   Showa, Tancho, Shiro/Hi/Ki Utsuri, Shiro Bekko, Ai Goromo, Goshiki, Asagi, Shusui, Kumonryu,
@@ -26,7 +26,7 @@ Straight from the CDN (jsDelivr serves files from this GitHub repo). Pin a versi
 your site never changes unexpectedly:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond></script>
+<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.1.0/dist/koi-pond.min.js" data-koi-pond></script>
 ```
 
 `@main` always gives the newest code instead. See [CHANGELOG.md](CHANGELOG.md) for what
@@ -35,8 +35,8 @@ changed in each version, and `KoiPond.VERSION` tells you which one is running.
 Real koi colours on dark pond water, or on white (any `data-background` works):
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond data-colors="koi"></script>
-<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond data-colors="koi" data-background="#ffffff"></script>
+<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.1.0/dist/koi-pond.min.js" data-koi-pond data-colors="koi"></script>
+<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.1.0/dist/koi-pond.min.js" data-koi-pond data-colors="koi" data-background="#ffffff"></script>
 ```
 
 Or download [`dist/koi-pond.min.js`](dist/koi-pond.min.js), host it yourself, and:
@@ -87,6 +87,8 @@ background colour, move it to `html` (or remove it) so the pond shows through.
 | `fishScale` | `1` | Size multiplier for the fish (`0.5` = half, `2` = double). Changing it with `pond.set()` resizes the swimming fish smoothly. |
 | `butterfly` | `0` | Share of butterfly koi with long, flowing fins (`0.2` = about 1 in 5, `1` = all). |
 | `varieties` | `'all'` | Which koi swim: `'all'` or names like `['kohaku', 'showa', 'ogon']` (kohaku, showa, asagi, ogon, tancho, shiro-utsuri, hi-utsuri, ki-utsuri, shiro-bekko, ai-goromo, goshiki, shusui, kumonryu, ochiba, kujaku, hariwake, soragoi). |
+| `behavior` | `'natural'` | How fish react to the pointer. `'natural'`: a slow or still pointer makes curious fish come over, a medium move makes them turn away, a fast move close by startles them away from it; each fish has its own boldness, gets used to you, avoids where it was scared for a moment, and its fright spreads to neighbours. `'simple'`: startle on touch only (the 1.0 behaviour). |
+| `feeding` | `false` | A left click or tap on an empty part of the page drops food; fish race to eat it. Never on links, buttons, fields or text, or on elements with `data-koi-no-feed`. |
 | `colors` | `'ink'` | `'ink'` for one ink colour, `'koi'` for real koi colours. |
 | `ink` | `'#1a42e2'` | Dot colour when `colors` is `'ink'` (hex or `rgb()`). |
 | `background` | `'auto'` | Light paper (`#eff5fd`) for ink, dark pond (`#0d2a30`) for koi colours; or any colour, or `'transparent'`. Both colour modes work on light and dark backgrounds; on light ones, white koi get a soft grey shading so they stay visible. |
@@ -102,7 +104,7 @@ background colour, move it to `html` (or remove it) so the pond shows through.
 | `zIndex` | `-1` | z-index of the full-page canvas. |
 | `seed` | `null` | A number gives the same pond every time. |
 
-Methods: `pond.set({...})`, `pond.addFish({ variety: 'kohaku', longFin: true })` (one koi swims in from the edge), `pond.pause()`, `pond.resume()`, `pond.destroy()`.
+Methods: `pond.set({...})`, `pond.addFish({ variety: 'kohaku', longFin: true })` (one koi swims in from the edge), `pond.feed(x, y)`, `pond.pause()`, `pond.resume()`, `pond.destroy()`.
 
 ## How it works
 

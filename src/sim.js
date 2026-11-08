@@ -11,8 +11,14 @@
 //   beat frequency rises with speed.
 // - Behaviour: mostly straight runs with deliberate turns to a new heading,
 //   occasional slow hovering. Slow fish turn slowly; fast fish turn more easily.
-// - Startle (pointer on the fish): a sharp C-bend to one side, then a burst of
-//   strong, fast tail beats, then a long glide back to calm.
+// - Reacting to you, like real koi: the pointer's speed and distance matter.
+//   A slow or still pointer makes curious fish come over and hover at it; a
+//   medium move nearby makes them turn calmly away; a fast move close by (or
+//   touching a fish) startles it away from the pointer. Each fish has its own
+//   boldness, gets used to you after a few frights (and slowly forgets), avoids
+//   the spot where it was scared for a few seconds, and its fright spreads to
+//   neighbours a moment later.
+// - Feeding: fish notice food pellets nearby, race to them and eat them.
 //
 // The only pointer interaction: when the pointer is over a fish's body, that
 // fish darts (a short burst of speed that fades out). Nothing else.
@@ -214,6 +220,12 @@ export function createFish(rng, bounds, size, butterfly = 0, allowed = null) {
     longFin: finRoll < butterfly, // butterfly koi: long, flowing fins
     seed: rng(),
     depth: rng() < 0.3 ? 0.45 + rng() * 0.4 : rng() * 0.25, // deeper fish are paler
+    boldness: rng(), // 0 shy .. 1 bold: how close it lets you come, how curious it is
+    fear: 1, // 1 = not used to you yet; drops after each fright, slowly comes back
+    curious: 0, // seconds left of being curious about the pointer
+    bored: 0, // seconds before it can get curious again
+    alarm: null, // a neighbour's fright reaching this fish: { t, strength, x, y }
+    avoid: null, // a spot to keep away from for a while: { x, y, until }
     variety,
     varRoll, // fixed per fish: picks the variety among the allowed ones
     pinned: false, // true for fish added with a chosen variety
@@ -249,8 +261,188 @@ export function hitTest(fish, px, py, pad = 6) {
 }
 
 /**
+ * Startle a fish: a quick bend, then a few strong strokes. `strength` (0..1)
+ * scales the burst. With `away` (an angle) it flees that way; otherwise it bolts
+ * to a random side.
+ */
+export function startle(fish, strength = 1, away = null) {
+  const rand = fish.rand;
+  if (fish.burst < 0.35) {
+    let side;
+    if (away == null) {
+      side = rand() < 0.5 ? -1 : 1;
+      fish.heading = fish.angle + side * (0.5 + rand() * 0.6);
+    } else {
+      side = angleDiff(away, fish.angle) >= 0 ? 1 : -1;
+      fish.heading = away + (rand() - 0.5) * 0.6;
+    }
+    fish.flick = side * (1.6 + rand() * 1.0) * (0.6 + 0.4 * strength);
+    fish.amp = Math.max(fish.amp, 1.1);
+    fish.rest = 0;
+  }
+  fish.burst = Math.max(fish.burst, strength);
+}
+
+/** A fright spreads: nearby fish feel it a moment later, a little weaker. */
+function spreadAlarm(fish, fishes, x, y, strength, time) {
+  if (!fishes || strength < 0.25) return;
+  const mid = (SPINE_SEGMENTS >> 1) * 2;
+  for (const o of fishes) {
+    if (o === fish || o.alarm || o.burst > 0.35) continue;
+    const d = Math.hypot(o.spine[mid] - fish.spine[mid], o.spine[mid + 1] - fish.spine[mid + 1]);
+    const reach = 2.6 * Math.max(fish.length, o.length);
+    if (d > reach) continue;
+    o.alarm = {
+      t: time + 0.12 + o.rand() * 0.22 + d / 1500, // reaction time, plus the wave travelling
+      strength: strength * (0.75 + 0.25 * (1 - o.boldness)) * (1 - 0.4 * (d / reach)),
+      x,
+      y,
+    };
+  }
+}
+
+/**
+ * What the fish senses this frame, and what it wants to do about it.
+ * Returns { urge: 0..1, angle, speedMul }.
+ */
+function senses(fish, dt, time, opts, hx, hy) {
+  const { fishes, pointer, food } = opts;
+  const L = fish.length;
+  const rand = fish.rand;
+  const out = { urge: 0, angle: 0, speedMul: 1 };
+  const simple = opts.behavior === 'simple';
+
+  fish.fear = Math.min(1, fish.fear + dt / 45); // slowly forgets
+  fish.bored = Math.max(0, fish.bored - dt);
+  if (fish.curious > 0) {
+    fish.curious -= dt;
+    if (fish.curious <= 0) {
+      fish.curious = 0;
+      fish.bored = 4 + rand() * 6; // lost interest for a while
+    }
+  }
+
+  // A neighbour's fright arriving.
+  if (!simple && fish.alarm && time >= fish.alarm.t) {
+    const a = fish.alarm;
+    fish.alarm = null;
+    if (fish.burst < 0.35 && a.strength > 0.2) {
+      startle(fish, a.strength, Math.atan2(hy - a.y, hx - a.x));
+      fish.avoid = { x: a.x, y: a.y, until: time + 2.5 };
+      fish.curious = 0;
+      spreadAlarm(fish, fishes, a.x, a.y, a.strength * 0.6, time);
+    }
+  }
+
+  // The pointer.
+  if (pointer && pointer.active) {
+    const dx = hx - pointer.x;
+    const dy = hy - pointer.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const speed = pointer.speed || 0; // CSS px per second
+    const touching = hitTest(fish, pointer.x, pointer.y);
+    const away = Math.atan2(dy, dx);
+
+    if (simple) {
+      if (touching) startle(fish, 1);
+    } else {
+      const R = L * (1.6 + 1.2 * (1 - fish.boldness)); // how far away it notices you
+      const close = clamp(1 - d / R, 0, 1);
+      const fast = smoothstep(150, 900, speed); // 0 slow .. 1 sudden
+      let threat = touching ? 0.75 + 0.25 * fast : close * close * fast * 1.6;
+      threat *= (0.35 + 0.65 * fish.fear) * (1.2 - 0.4 * fish.boldness);
+
+      if (threat > 0.5 && fish.burst < 0.35) {
+        // Startle: away from the pointer, and the fright spreads.
+        const strength = Math.min(1, threat);
+        startle(fish, strength, away);
+        fish.fear = Math.max(0.25, fish.fear - 0.18); // gets a little more used to you
+        fish.avoid = { x: pointer.x, y: pointer.y, until: time + 3 + 2 * (1 - fish.boldness) };
+        fish.curious = 0;
+        fish.bored = 4;
+        spreadAlarm(fish, fishes, pointer.x, pointer.y, strength * 0.6, time);
+      } else if (threat > 0.15) {
+        // Wary: turn calmly away, a little quicker.
+        out.urge = smoothstep(0.15, 0.5, threat);
+        out.angle = away;
+        out.speedMul = 1.35;
+        fish.curious = 0;
+      } else if (
+        fish.curious <= 0 && fish.bored <= 0 && !fish.avoid && speed < 80 && d < R * 2.4 &&
+        rand() < dt * (0.15 + 0.9 * fish.boldness)
+      ) {
+        fish.curious = 3 + rand() * 5; // a slow hand: come and have a look
+      }
+
+      if (fish.curious > 0) {
+        if (speed > 260) {
+          fish.curious = 0; // a quick move breaks the spell
+          fish.bored = 2;
+        } else {
+          const stop = L * 0.55;
+          out.urge = 0.85;
+          out.angle = Math.atan2(-dy, -dx);
+          out.speedMul = d < stop * 1.6 ? 0.12 : d < stop * 3 ? 0.5 : 0.9; // slow down on arrival
+          fish.rest = 0;
+        }
+      }
+    }
+  } else {
+    fish.curious = 0;
+  }
+
+  // Keep away from where it was frightened, for a while.
+  if (fish.avoid) {
+    if (time > fish.avoid.until) {
+      fish.avoid = null;
+    } else if (fish.curious <= 0) {
+      const dx = hx - fish.avoid.x;
+      const dy = hy - fish.avoid.y;
+      const d = Math.hypot(dx, dy);
+      const r = L * 3;
+      if (d < r) {
+        const k = (1 - d / r) * 0.8;
+        if (k > out.urge) {
+          out.urge = k;
+          out.angle = Math.atan2(dy, dx);
+        }
+      }
+    }
+  }
+
+  // Food: notice pellets nearby, race to the closest one, eat it.
+  if (food && food.length && fish.burst < 0.3) {
+    const reach = L * (4 + 2 * fish.boldness);
+    let best = null;
+    let bestD = reach;
+    for (const p of food) {
+      if (p.eaten || p.age < 0.25) continue; // takes a moment to notice it
+      const d = Math.hypot(p.x - hx, p.y - hy);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    if (best) {
+      fish.curious = 0;
+      fish.rest = 0;
+      out.urge = 0.95;
+      out.angle = Math.atan2(best.y - hy, best.x - hx);
+      out.speedMul = bestD < L * 0.8 ? 0.7 : 1.5;
+      if (bestD < L * 0.14 + 4) {
+        best.eaten = true; // gulp
+        fish.speed *= 0.7;
+        fish.decide = 1 + rand() * 2;
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Advance one fish by dt seconds.
- * opts: { speed, dartBoost, dartDuration, bounds:{width,height}, fishes, pointer:{x,y,active} }
+ * opts: { speed, dartBoost, dartDuration, bounds:{width,height}, fishes,
+ *         pointer:{x,y,active,speed}, food: [{x,y,age,eaten}], behavior: 'natural'|'simple' }
  */
 export function stepFish(fish, dt, time, opts) {
   const { bounds, fishes, pointer } = opts;
@@ -306,17 +498,17 @@ export function stepFish(fish, dt, time, opts) {
     }
   }
 
-  // --- Pointer: startle when the pointer is on this fish. Nothing else.
-  if (pointer && pointer.active && hitTest(fish, pointer.x, pointer.y)) {
-    if (fish.burst < 0.35) {
-      // Startle: a quick bend to one side, then a few strong strokes.
-      const side = rand() < 0.5 ? -1 : 1;
-      fish.flick = side * (1.6 + rand() * 1.0);
-      fish.heading = fish.angle + side * (0.5 + rand() * 0.6);
-      fish.amp = Math.max(fish.amp, 1.1);
-      fish.rest = 0;
-    }
-    fish.burst = 1;
+  // --- Senses: the pointer, food, frightened neighbours.
+  const sensed = senses(fish, dt, time, opts, hx, hy);
+  const speedMul = sensed.speedMul;
+  if (sensed.urge > 0) {
+    // A goal (go to the pointer, flee it, reach food) overrides the wandering.
+    want = want * (1 - sensed.urge) + angleDiff(sensed.angle, fish.angle) * sensed.urge * 1.6;
+  }
+  // Near an edge, staying in the pond still wins over chasing or fleeing.
+  if (edge > 0.3) {
+    const toC = Math.atan2(bounds.height / 2 - hy, bounds.width / 2 - hx);
+    want = want * (1 - edge) + angleDiff(toC, fish.angle) * edge;
   }
   fish.burst *= Math.exp(-dt / Math.max(0.05, opts.dartDuration * 0.45));
   fish.flick *= Math.exp(-dt / 0.15);
@@ -332,7 +524,7 @@ export function stepFish(fish, dt, time, opts) {
   const cruise = fish.baseSpeed * opts.speed;
   const target = fish.burst > 0.02
     ? cruise * (1 + opts.dartBoost * fish.burst)
-    : fish.rest > 0 ? cruise * 0.22 : cruise;
+    : fish.rest > 0 && speedMul === 1 ? cruise * 0.22 : cruise * speedMul;
   if (fish.burst > 0.05 || Math.abs(want) > 0.9) {
     fish.beating = true; // power through startles and sharp turns
   } else if (fish.beating && fish.speed > target * 1.15) {

@@ -27,11 +27,11 @@
     <section class="hero">
       <div class="hero-copy">
         <h1><span class="accent">Koi</span> that swim behind your website.</h1>
-        <p class="lede">A small dithering shader that turns any page into a koi pond. Point at a fish and it darts away.</p>
+        <p class="lede">Dithered koi swim behind your page. Move slowly and they come closer, move fast and they scatter. Click to feed them.</p>
         <div class="cta">
           <a class="btn primary" href="#install">Add it to your site <svg class="ico" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a>
           <button class="snippet" type="button" aria-label="Copy the script tag"
-            data-copy='&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond&gt;&lt;/script&gt;'>
+            data-copy='&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.1.0/dist/koi-pond.min.js" data-koi-pond&gt;&lt;/script&gt;'>
             <code><span class="tok">&lt;script</span> data-koi-pond<span class="tok">&gt;</span></code>
             <span class="snippet-copy">Copy</span>
           </button>
@@ -45,7 +45,7 @@
         <div class="install-intro">
           <h2>Drop it in</h2>
           <p>One script tag adds the pond behind any page. Your page stays clickable: the canvas only reads where the pointer is.</p>
-          <p class="facts">WebGL2, about 13&nbsp;KB gzipped, no dependencies, MIT licensed.</p>
+          <p class="facts">WebGL2, about 15&nbsp;KB gzipped, no dependencies, MIT licensed.</p>
         </div>
         <div class="install-code">
           <div class="tabs" role="tablist" aria-label="Ways to install">
@@ -55,10 +55,10 @@
           </div>
 
           <div class="tabpanel" id="tab-script" role="tabpanel" aria-labelledby="t-script">
-            <p>Add this before <code>&lt;/body&gt;</code>. The <code>@v1.0.0</code> pins a version, so your site never changes unexpectedly.</p>
-            <pre><button class="copy" type="button">Copy</button><code>&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond&gt;&lt;/script&gt;</code></pre>
+            <p>Add this before <code>&lt;/body&gt;</code>. The <code>@v1.1.0</code> pins a version, so your site never changes unexpectedly.</p>
+            <pre><button class="copy" type="button">Copy</button><code>&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.1.0/dist/koi-pond.min.js" data-koi-pond&gt;&lt;/script&gt;</code></pre>
             <p>Options go in <code>data-</code> attributes, for example real koi colours on white:</p>
-            <pre><button class="copy" type="button">Copy</button><code>&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js" data-koi-pond
+            <pre><button class="copy" type="button">Copy</button><code>&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.1.0/dist/koi-pond.min.js" data-koi-pond
         data-colors="koi" data-background="#ffffff" data-count="14"&gt;&lt;/script&gt;</code></pre>
           </div>
 
@@ -77,7 +77,7 @@ pond.destroy();</code></pre>
             <p>Give it a <code>target</code> and the pond fills only that element.</p>
             <pre><button class="copy" type="button">Copy</button><code>&lt;section id="hero"&gt;...&lt;/section&gt;
 
-&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.0.0/dist/koi-pond.min.js"&gt;&lt;/script&gt;
+&lt;script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@v1.1.0/dist/koi-pond.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   KoiPond.create({ target: '#hero', count: 6 });
 &lt;/script&gt;</code></pre>
@@ -92,7 +92,7 @@ pond.destroy();</code></pre>
         <ol class="flow">
           <li>
             <h3>Swim</h3>
-            <p>Each koi is a chain of points, so a turn bends the whole body. They swim like real carp: a few tail beats, then a long glide. Point at one and it startles, then calms down.</p>
+            <p>Each koi is a chain of points, so a turn bends the whole body. They swim like real carp, a few tail beats then a long glide, and react to you like real koi: curious about a slow hand, wary of a quick one, startled by a sudden move. Each has its own boldness and gets used to you.</p>
           </li>
           <li>
             <h3>Paint</h3>
@@ -149,7 +149,9 @@ pond.destroy();</code></pre>
             <h3>Motion</h3>
             <dl>
               <dt><code>speed</code><span>1</span></dt><dd>Swimming speed multiplier.</dd>
-              <dt><code>interactive</code><span>true</span></dt><dd>Startle a fish when the pointer is on it.</dd>
+              <dt><code>interactive</code><span>true</span></dt><dd>Fish react to the pointer.</dd>
+              <dt><code>behavior</code><span>'natural'</span></dt><dd>Curious, wary or startled depending on how you move. <code>'simple'</code> only startles on touch.</dd>
+              <dt><code>feeding</code><span>false</span></dt><dd>A click on an empty spot drops food.</dd>
               <dt><code>dartBoost</code><span>1.5</span></dt><dd>Extra speed when startled (up to 2.5&times;).</dd>
               <dt><code>dartDuration</code><span>1</span></dt><dd>Seconds until a startle has faded.</dd>
               <dt><code>reducedMotion</code><span>'auto'</span></dt><dd>Slows the pond for visitors who prefer less motion.</dd>
@@ -171,6 +173,7 @@ pond.destroy();</code></pre>
           <ul>
             <li><code>pond.set({ ... })</code> changes options while it runs.</li>
             <li><code>pond.addFish({ variety: 'kohaku' })</code> adds one koi that swims in from the edge.</li>
+            <li><code>pond.feed(x, y)</code> drops a little food at a point.</li>
             <li><code>pond.pause()</code> and <code>pond.resume()</code></li>
             <li><code>pond.destroy()</code> removes the canvas.</li>
           </ul>
@@ -184,7 +187,7 @@ pond.destroy();</code></pre>
     </div>
   </main>
 
-  <div class="dock" role="group" aria-label="Pond controls">
+  <div class="dock" role="group" aria-label="Pond controls" data-koi-no-feed>
     <button class="icon" type="button" data-action="pause" aria-label="Pause">
       <svg class="ico" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z"/></svg>
     </button>
@@ -224,7 +227,7 @@ pond.destroy();</code></pre>
     </label>
   </div>
 
-  <div class="bg-picker" id="bg-picker" role="dialog" aria-label="Background colour" hidden>
+  <div class="bg-picker" id="bg-picker" role="dialog" aria-label="Background colour" data-koi-no-feed hidden>
     <p class="bg-title">Background</p>
     <div class="swatches">
       <button type="button" class="swatch auto" data-bg="auto" aria-pressed="true" title="Auto: light paper for blue, dark pond for real koi" aria-label="Auto"></button>
@@ -240,7 +243,7 @@ pond.destroy();</code></pre>
     <label class="custom">Custom colour <input type="color" value="#eff5fd" data-bg-custom /></label>
   </div>
 
-  <div class="types-panel" id="types-panel" role="dialog" aria-label="Koi types" hidden>
+  <div class="types-panel" id="types-panel" role="dialog" aria-label="Koi types" data-koi-no-feed hidden>
     <div class="tp-head">
       <p class="bg-title">Koi types</p>
       <div class="tp-presets">

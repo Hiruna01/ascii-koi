@@ -6,6 +6,22 @@ versions add features, patch versions fix bugs.
 
 Pin a version in your script tag (`@v1.0.0`) so your site never changes unexpectedly.
 
+## 1.1.0
+
+Fish react to you like real koi.
+
+- `behavior: 'natural'` (new default): the pointer's speed and distance matter. A slow or
+  still pointer makes curious fish come over and hover at it, a medium move nearby makes
+  them turn calmly away, and a fast move close by (or touching a fish) startles it away
+  from the pointer instead of to a random side.
+- Each fish has its own boldness, gets used to you after a few frights (and slowly
+  forgets), and avoids the spot where it was scared for a few seconds.
+- A fright spreads: nearby fish react a moment later, a little weaker.
+- `feeding: true`: a left click or tap on an empty part of the page drops a small cluster
+  of food. Fish notice it, race to it and eat it. Never on links, buttons, fields, text or
+  elements with `data-koi-no-feed`. `pond.feed(x, y)` drops food from code.
+- `behavior: 'simple'` keeps the 1.0 behaviour (startle on touch only).
+
 ## 1.0.0
 
 First versioned release.

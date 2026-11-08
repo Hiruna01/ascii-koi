@@ -97,7 +97,14 @@ void main() {
   vec3 col;    // real koi colour
   float a;
 
-  if (kind < 0.5) {
+  if (kind > 2.5) {
+    // ---------- Food pellet: a small brown crumb that sinks and fades ----------
+    float r = length(vec2(u * 2.0 - 1.0, v));
+    a = (1.0 - smoothstep(0.55, 1.0, r)) * (1.0 - 0.8 * depth); // depth = how far it has sunk
+    col = vec3(0.58, 0.4, 0.22);
+    ink = 0.75;
+    amt = 0.9;
+  } else if (kind < 0.5) {
     // ---------- Body ----------
     // The quad is a little wider than the body: the outer band is a faint halo.
     float av = abs(v) * 1.16;

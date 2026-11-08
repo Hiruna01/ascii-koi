@@ -166,14 +166,26 @@ function writeFish(f) {
   }
 }
 
+// A food pellet: a small round crumb. kind 3; `seed` carries nothing, `depth`
+// how far it has sunk (0 floating .. 1 gone).
+const pelletMeta = { seed: 0, depth: 0, variety: 0, longFin: false };
+function writePellet(p) {
+  const sink = Math.min(1, Math.max(0, (p.age - 2.5) / 7.5));
+  const r = 4.4 * (1 - 0.35 * sink);
+  pelletMeta.depth = sink;
+  quad(p.x - r, p.y - r, p.x - r, p.y + r, p.x + r, p.y - r, p.x + r, p.y + r, 0, 1, 3, pelletMeta);
+}
+
 /**
  * Write triangles for all fish into `buffer` (deepest fish first so nearer fish
- * are drawn on top). Returns the number of vertices written.
+ * are drawn on top), then any food pellets on the surface. Returns the number
+ * of vertices written.
  */
-export function buildGeometry(fishes, buffer) {
+export function buildGeometry(fishes, buffer, food = null) {
   out = buffer;
   o = 0;
   const order = fishes.slice().sort((a, b) => b.depth - a.depth);
   for (const f of order) writeFish(f);
+  if (food) for (const p of food) if (!p.eaten) writePellet(p);
   return o / FLOATS_PER_VERTEX;
 }
