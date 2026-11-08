@@ -25,10 +25,11 @@ Straight from the CDN (jsDelivr serves files from this GitHub repo):
 <script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond></script>
 ```
 
-Real koi colours on dark pond water:
+Real koi colours on dark pond water, or on white (any `data-background` works):
 
 ```html
 <script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond data-colors="koi"></script>
+<script src="https://cdn.jsdelivr.net/gh/Hiruna01/ascii-koi@main/dist/koi-pond.min.js" data-koi-pond data-colors="koi" data-background="#ffffff"></script>
 ```
 
 Or download [`dist/koi-pond.min.js`](dist/koi-pond.min.js), host it yourself, and:
@@ -78,7 +79,7 @@ background colour, move it to `html` (or remove it) so the pond shows through.
 | `fishSize` | `'auto'` | Body length in CSS px; auto scales with the viewport. |
 | `colors` | `'ink'` | `'ink'` for one ink colour, `'koi'` for real koi colours. |
 | `ink` | `'#1a42e2'` | Dot colour when `colors` is `'ink'` (hex or `rgb()`). |
-| `background` | `'auto'` | Light paper (`#eff5fd`) for ink, dark pond (`#0d2a30`) for koi colours; or any colour, or `'transparent'`. |
+| `background` | `'auto'` | Light paper (`#eff5fd`) for ink, dark pond (`#0d2a30`) for koi colours; or any colour, or `'transparent'`. Both colour modes work on light and dark backgrounds; on light ones, white koi get a soft grey shading so they stay visible. |
 | `mode` | `'bayer'` | `'bayer'` or `'lines'`. |
 | `tones` | `4` | Shades of ink between paper and full ink; `1` gives single-colour dots. |
 | `pixelSize` | `1.5` | Size of one dot in CSS px. |

@@ -30,6 +30,12 @@ in vec4 v_meta;
 layout(location = 0) out vec4 oInk;   // ink amount (red channel), alpha = coverage
 layout(location = 1) out vec4 oColor; // pigment colour, alpha = coverage
 uniform int u_natural;                // 1 = real koi colours
+uniform float u_light;                // 1 = light background (white koi need shading to show)
+
+// How close a colour is to white (white skin, platinum).
+float whiteness(vec3 c) {
+  return smoothstep(0.8, 0.9, min(c.r, min(c.g, c.b)));
+}
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -147,9 +153,12 @@ void main() {
     ink = mix(ink, min(ink, 0.55), (1.0 - smoothstep(0.0, 0.06, u)) * 0.7);
     ink = mix(ink, 0.5, smoothstep(0.88, 1.0, u) * 0.6);
 
-    // Real colours: solid body, rounded shading towards the sides.
-    col *= 1.0 - 0.06 * ridge;
-    col = mix(col, col * 0.68, edge * 0.8);
+    // Real colours: solid body, rounded shading towards the sides. On a light
+    // background, white skin turns a soft grey with a darker rim so it still reads.
+    float wt = whiteness(col) * u_light;
+    col = mix(col, col * vec3(0.88, 0.88, 0.9), wt);
+    col *= 1.0 - (0.06 + 0.05 * wt) * ridge - 0.06 * wt * scaleRim;
+    col = mix(col, col * mix(0.68, 0.52, u_light), edge * 0.8);
     amt = mix(0.98, 0.72, edge * 0.85) * mix(1.0, 0.8, smoothstep(0.9, 1.0, u));
 
     // Eyes: tiny dark points on each side of the head.
@@ -182,7 +191,8 @@ void main() {
       ink = mix(0.3, 0.13, u) * rays;
       amt = mix(0.58, 0.28, u) * rays;
     }
-    col = finCol;
+    // White fins on a light background: tint them grey so they stay visible.
+    col = mix(finCol, finCol * 0.6, whiteness(finCol) * u_light);
   }
 
   // Deeper fish are paler.
@@ -295,6 +305,7 @@ export function createRenderer(gl) {
   const loc = {
     res: gl.getUniformLocation(sceneProg, 'u_res'),
     sceneNatural: gl.getUniformLocation(sceneProg, 'u_natural'),
+    sceneLight: gl.getUniformLocation(sceneProg, 'u_light'),
     color: gl.getUniformLocation(ditherProg, 'u_color'),
     natural: gl.getUniformLocation(ditherProg, 'u_natural'),
     scene: gl.getUniformLocation(ditherProg, 'u_scene'),
@@ -358,7 +369,8 @@ export function createRenderer(gl) {
      * frame: { canvasW, canvasH (device px), dot (device px per dot), cssPerDot,
      *          vertices: Float32Array, count, mode: 0|1, ink:[r,g,b], bg:[r,g,b,a],
      *          stops: [0, ..., 1] ink amount of each palette tone,
-     *          natural: true for real koi colours instead of the single ink colour }
+     *          natural: true for real koi colours instead of the single ink colour,
+     *          light: 0..1, how light the background is }
      */
     render(frame) {
       const sw = Math.max(1, Math.ceil(frame.canvasW / frame.dot));
@@ -374,6 +386,7 @@ export function createRenderer(gl) {
         gl.useProgram(sceneProg);
         gl.uniform2f(loc.res, sw * frame.cssPerDot, sh * frame.cssPerDot);
         gl.uniform1i(loc.sceneNatural, frame.natural ? 1 : 0);
+        gl.uniform1f(loc.sceneLight, frame.light == null ? 0 : frame.light);
         gl.enable(gl.BLEND);
         // Colour: normal "over" blending. Alpha: accumulate coverage.
         gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);

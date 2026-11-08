@@ -24,17 +24,70 @@
     pond.set({ count: +document.querySelector('[data-opt="count"]').value });
   });
 
-  // --- Colours: blue ink on paper, or real koi colours on dark pond water.
+  // --- Colours and background. Any background works with either colour mode.
+  const root = document.documentElement;
+  const PAPER = '#eff5fd';
+  const POND = '#0d2a30';
+  let colors = 'ink';
+  let bgChoice = 'auto';
+
+  function lightness(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  function applyLook() {
+    const bg = bgChoice === 'auto' ? (colors === 'koi' ? POND : PAPER) : bgChoice;
+    pond.set({ colors, background: bgChoice });
+    root.style.setProperty('--paper', bg);
+    root.classList.toggle('theme-dark', lightness(bg) < 0.45);
+    root.classList.toggle('accent-koi', colors === 'koi');
+    document.querySelector('meta[name="theme-color"]').content = bg;
+    document.querySelectorAll('[data-bg]').forEach((sw) =>
+      sw.setAttribute('aria-pressed', String(sw.dataset.bg === bgChoice)),
+    );
+    customInput.value = bg;
+  }
+
   const colorButtons = document.querySelectorAll('[data-colors]');
   colorButtons.forEach((b) =>
     b.addEventListener('click', () => {
-      const koi = b.dataset.colors === 'koi';
-      pond.set({ colors: b.dataset.colors });
-      document.documentElement.classList.toggle('theme-pond', koi);
-      document.querySelector('meta[name="theme-color"]').content = koi ? '#0d2a30' : '#eff5fd';
+      colors = b.dataset.colors;
       colorButtons.forEach((o) => o.setAttribute('aria-checked', String(o === b)));
+      applyLook();
     }),
   );
+
+  // Background picker popover.
+  const bgBtn = document.querySelector('[data-action="background"]');
+  const picker = document.getElementById('bg-picker');
+  const customInput = picker.querySelector('[data-bg-custom]');
+  function openPicker(open) {
+    picker.hidden = !open;
+    bgBtn.setAttribute('aria-expanded', String(open));
+  }
+  bgBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openPicker(picker.hidden);
+  });
+  picker.addEventListener('click', (e) => e.stopPropagation());
+  document.addEventListener('click', () => openPicker(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !picker.hidden) {
+      openPicker(false);
+      bgBtn.focus();
+    }
+  });
+  picker.querySelectorAll('[data-bg]').forEach((sw) =>
+    sw.addEventListener('click', () => {
+      bgChoice = sw.dataset.bg;
+      applyLook();
+    }),
+  );
+  customInput.addEventListener('input', () => {
+    bgChoice = customInput.value;
+    applyLook();
+  });
 
   // --- Fish only: hide every page element and leave just the pond.
   const exitBtn = document.querySelector('[data-action="exit-fish-only"]');
@@ -45,6 +98,7 @@
     idleTimer = setTimeout(() => exitBtn.classList.remove('visible'), 2000);
   }
   function setFishOnly(on) {
+    openPicker(false);
     document.documentElement.classList.toggle('fish-only', on);
     if (on) {
       showExit();

@@ -9,21 +9,28 @@
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Real koi colours: dark pond water. */
-html.theme-pond {
-  --paper: #0d2a30;
-  --text: #eef6f4;
-  --muted: #a9c2c0;
-  --ink: #ff7a3d;
-  --line: rgba(238, 246, 244, 0.16);
-  --panel: rgba(13, 42, 48, 0.86);
+/* Panels follow whatever background is chosen (fallback above for old browsers). */
+@supports (background: color-mix(in srgb, red 50%, transparent)) {
+  :root { --panel: color-mix(in srgb, var(--paper) 86%, transparent); }
 }
-html.theme-pond pre { background: #06171b; }
-html.theme-pond .btn.primary { color: #10262b; }
-html.theme-pond .dock { background: rgba(13, 42, 48, 0.86); }
-html.theme-pond .seg { background: rgba(238, 246, 244, 0.08); }
-html.theme-pond .seg button[aria-checked="true"] { background: #eef6f4; color: #0d2a30; }
-html.theme-pond .note { background: rgba(255, 122, 61, 0.1); }
+
+/* Dark backgrounds: light text. */
+html.theme-dark {
+  --text: #eef3f6;
+  --muted: #a9bcc4;
+  --ink: #7d9bff;
+  --line: rgba(238, 243, 246, 0.16);
+}
+html.theme-dark pre { background: rgba(0, 0, 0, 0.45); }
+html.theme-dark .dock { background: color-mix(in srgb, var(--paper) 86%, transparent); }
+html.theme-dark .seg { background: rgba(238, 243, 246, 0.08); }
+html.theme-dark .seg button[aria-checked="true"] { background: #eef3f6; color: #0d1a24; }
+
+/* Real koi colours: koi-orange accent. */
+html.accent-koi { --ink: #d4461b; }
+html.accent-koi.theme-dark { --ink: #ff7a3d; }
+html.accent-koi .note { background: rgba(255, 122, 61, 0.1); }
+html.theme-dark .btn.primary { color: #0d1a24; }
 html { transition: background-color 0.4s ease; }
 
 * { box-sizing: border-box; }
@@ -204,6 +211,38 @@ td:nth-child(2) { white-space: nowrap; color: var(--muted); }
 .seg button[aria-checked="true"] { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(11, 26, 77, 0.12); }
 .range { display: inline-flex; align-items: center; gap: 8px; }
 .range input { width: 84px; accent-color: var(--ink); }
+
+/* ---------- Background picker ---------- */
+.bg-dot {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--paper); border: 1.5px solid var(--text);
+  box-shadow: inset 0 0 0 2px var(--panel);
+}
+.bg-picker {
+  position: fixed; left: 50%; bottom: 82px; transform: translateX(-50%); z-index: 11;
+  padding: 14px; border-radius: 16px; width: max-content; max-width: calc(100vw - 24px);
+  background: #ffffff; color: #0b1a4d;
+  border: 1px solid rgba(11, 26, 77, 0.12); box-shadow: 0 12px 40px rgba(11, 26, 77, 0.18);
+}
+.bg-picker[hidden] { display: none; }
+.bg-title { margin: 0 0 10px; font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: #4b5b8c; }
+.swatches { display: grid; grid-template-columns: repeat(9, 30px); gap: 8px; }
+.swatch {
+  width: 30px; height: 30px; border-radius: 50%; cursor: pointer; padding: 0;
+  background: var(--c); border: 1px solid rgba(11, 26, 77, 0.2);
+}
+.swatch.auto {
+  background: linear-gradient(135deg, #eff5fd 50%, #0d2a30 50%);
+}
+.swatch[aria-pressed="true"] { outline: 2px solid #1a42e2; outline-offset: 2px; }
+.custom {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 12px; font: 600 13px var(--sans); color: #4b5b8c;
+}
+.custom input { width: 44px; height: 28px; padding: 0; border: 1px solid rgba(11, 26, 77, 0.2); border-radius: 8px; background: none; cursor: pointer; }
+@media (max-width: 420px) {
+  .swatches { grid-template-columns: repeat(5, 30px); }
+}
 
 /* ---------- Fish only: nothing but the pond ---------- */
 .nav, main, .foot, .dock { transition: opacity 0.35s ease, visibility 0.35s; }

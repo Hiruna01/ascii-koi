@@ -21,7 +21,8 @@ export const DEFAULTS = Object.freeze({
   fishSize: 'auto', // body length in CSS px, or 'auto' (scales with the viewport)
   colors: 'ink', // 'ink' = single ink colour, 'koi' = real koi colours (red, black, white, gold...)
   ink: '#1a42e2', // dot colour when colors is 'ink'
-  background: 'auto', // 'auto', any colour, or 'transparent'. Auto = light paper for ink, dark pond for koi
+  background: 'auto', // 'auto', any colour, or 'transparent'. Auto = light paper for ink, dark pond for koi.
+  //                     Any background works with either colour mode.
   mode: 'bayer', // 'bayer' | 'lines'
   tones: 4, // shades of ink between paper and full ink (1 = single colour, max 8)
   pixelSize: 1.5, // size of one dot in CSS px
@@ -75,6 +76,13 @@ function backgroundFor(opts) {
     return parseColor(opts.colors === 'koi' ? POND : PAPER);
   }
   return parseColor(opts.background);
+}
+
+/** 0..1: how light a background is (transparent counts as light: most pages are). */
+export function backgroundLightness(c) {
+  if (c[3] < 0.5) return 1;
+  const lum = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  return Math.min(1, Math.max(0, (lum - 0.35) / 0.3));
 }
 
 function resolveTarget(t) {
@@ -213,6 +221,7 @@ export function createKoiPond(options = {}) {
       bg,
       stops: toneStops(opts.tones),
       natural: opts.colors === 'koi',
+      light: backgroundLightness(bg),
     });
   }
 

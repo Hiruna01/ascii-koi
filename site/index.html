@@ -53,8 +53,9 @@
         <p>Options go in <code>data-</code> attributes:</p>
         <pre><button class="copy" type="button">Copy</button><code>&lt;script src="koi-pond.min.js" data-koi-pond
         data-mode="lines" data-count="14" data-pixel-size="2"&gt;&lt;/script&gt;</code></pre>
-        <p>Real koi colours on dark pond water:</p>
-        <pre><button class="copy" type="button">Copy</button><code>&lt;script src="koi-pond.min.js" data-koi-pond data-colors="koi"&gt;&lt;/script&gt;</code></pre>
+        <p>Real koi colours on dark pond water, or on white:</p>
+        <pre><button class="copy" type="button">Copy</button><code>&lt;script src="koi-pond.min.js" data-koi-pond data-colors="koi"&gt;&lt;/script&gt;
+&lt;script src="koi-pond.min.js" data-koi-pond data-colors="koi" data-background="#ffffff"&gt;&lt;/script&gt;</code></pre>
       </div>
 
       <div class="tabpanel" id="tab-module" role="tabpanel" aria-labelledby="t-module" hidden>
@@ -120,7 +121,7 @@ pond.destroy();</code></pre>
             <tr><td><code>fishSize</code></td><td><code>'auto'</code></td><td>Body length in CSS pixels. Auto scales with the viewport.</td></tr>
             <tr><td><code>colors</code></td><td><code>'ink'</code></td><td><code>'ink'</code> for one ink colour, or <code>'koi'</code> for real koi colours: red, black and white Kohaku, Sanke and Showa, Tancho, blue-grey Asagi, metallic gold and platinum Ogon, brown Chagoi.</td></tr>
             <tr><td><code>ink</code></td><td><code>'#1a42e2'</code></td><td>Dot colour when <code>colors</code> is <code>'ink'</code> (hex or <code>rgb()</code>).</td></tr>
-            <tr><td><code>background</code></td><td><code>'auto'</code></td><td>Light paper (<code>#eff5fd</code>) for ink, dark pond water (<code>#0d2a30</code>) for real koi colours. Or any colour, or <code>'transparent'</code>.</td></tr>
+            <tr><td><code>background</code></td><td><code>'auto'</code></td><td>Light paper (<code>#eff5fd</code>) for ink, dark pond water (<code>#0d2a30</code>) for real koi colours. Or any colour, or <code>'transparent'</code>. Both colour modes work on light and dark backgrounds.</td></tr>
             <tr><td><code>mode</code></td><td><code>'bayer'</code></td><td><code>'bayer'</code> dots or <code>'lines'</code> line screen.</td></tr>
             <tr><td><code>tones</code></td><td><code>4</code></td><td>Shades of ink between paper and full ink. <code>1</code> gives single-colour dots.</td></tr>
             <tr><td><code>pixelSize</code></td><td><code>1.5</code></td><td>Size of one dot in CSS pixels.</td></tr>
@@ -164,6 +165,9 @@ pond.destroy();</code></pre>
       <button type="button" role="radio" aria-checked="true" data-colors="ink">Blue</button>
       <button type="button" role="radio" aria-checked="false" data-colors="koi">Real koi</button>
     </div>
+    <button class="icon bg-btn" type="button" data-action="background" aria-label="Background colour" title="Background colour" aria-haspopup="dialog" aria-expanded="false" aria-controls="bg-picker">
+      <span class="bg-dot" aria-hidden="true"></span>
+    </button>
     <div class="seg" role="radiogroup" aria-label="Dither mode">
       <button type="button" role="radio" aria-checked="true" data-mode="bayer">Bayer</button>
       <button type="button" role="radio" aria-checked="false" data-mode="lines">Lines</button>
@@ -175,6 +179,22 @@ pond.destroy();</code></pre>
     <label class="range">Fish
       <input type="range" min="1" max="24" step="1" value="10" data-opt="count" />
     </label>
+  </div>
+
+  <div class="bg-picker" id="bg-picker" role="dialog" aria-label="Background colour" hidden>
+    <p class="bg-title">Background</p>
+    <div class="swatches">
+      <button type="button" class="swatch auto" data-bg="auto" aria-pressed="true" title="Auto: light paper for blue, dark pond for real koi" aria-label="Auto"></button>
+      <button type="button" class="swatch" data-bg="#eff5fd" style="--c:#eff5fd" aria-pressed="false" title="Paper" aria-label="Paper"></button>
+      <button type="button" class="swatch" data-bg="#ffffff" style="--c:#ffffff" aria-pressed="false" title="White" aria-label="White"></button>
+      <button type="button" class="swatch" data-bg="#f4eee1" style="--c:#f4eee1" aria-pressed="false" title="Rice paper" aria-label="Rice paper"></button>
+      <button type="button" class="swatch" data-bg="#dfe7e4" style="--c:#dfe7e4" aria-pressed="false" title="Mist" aria-label="Mist"></button>
+      <button type="button" class="swatch" data-bg="#0d2a30" style="--c:#0d2a30" aria-pressed="false" title="Pond" aria-label="Pond"></button>
+      <button type="button" class="swatch" data-bg="#1b3328" style="--c:#1b3328" aria-pressed="false" title="Moss" aria-label="Moss"></button>
+      <button type="button" class="swatch" data-bg="#0b1424" style="--c:#0b1424" aria-pressed="false" title="Midnight" aria-label="Midnight"></button>
+      <button type="button" class="swatch" data-bg="#111111" style="--c:#111111" aria-pressed="false" title="Ink black" aria-label="Ink black"></button>
+    </div>
+    <label class="custom">Custom colour <input type="color" value="#eff5fd" data-bg-custom /></label>
   </div>
 
   <button class="exit-view" type="button" data-action="exit-fish-only" aria-label="Back to the page">
