@@ -5,6 +5,7 @@
 //   const pond = createKoiPond({ target: '#hero' }); // inside one element
 
 import {
+  TAU,
   createFish,
   defaultFishSize,
   mulberry32,
@@ -26,6 +27,7 @@ export const DEFAULTS = Object.freeze({
   fishSize: 'auto', // body length in CSS px, or 'auto' (scales with the viewport)
   fishScale: 1, // size multiplier on top of fishSize (0.5 = half, 2 = double); changes resize fish live
   butterfly: 0, // share of butterfly koi with long, flowing fins (0 = none, 0.2 = about 1 in 5, 1 = all)
+  still: false, // true: fish stay where they are placed and only move their body, tail and fins
   varieties: 'all', // which koi varieties swim: 'all', or names like ['kohaku', 'showa', 'ogon'] (see VARIETY_NAMES)
   colors: 'ink', // 'ink' = single ink colour, 'koi' = real koi colours (red, black, white, gold...)
   ink: '#1a42e2', // dot colour when colors is 'ink'
@@ -256,7 +258,16 @@ export function createKoiPond(options = {}) {
       pointer: opts.interactive ? pointer : null,
       rng,
     };
-    for (const f of fishes) stepFish(f, dt, time, stepOpts);
+    if (opts.still) {
+      // Hover in place: a gentle tail beat and sculling fins, no travel.
+      const k = stepOpts.speed;
+      for (const f of fishes) {
+        f.phase += TAU * 0.8 * dt * k;
+        f.finPhase += TAU * 0.6 * dt * k;
+      }
+    } else {
+      for (const f of fishes) stepFish(f, dt, time, stepOpts);
+    }
     draw();
     schedule();
   }

@@ -17,6 +17,7 @@
     <nav>
       <a href="#install">Install</a>
       <a href="#how">How it works</a>
+      <a href="#koi">The koi</a>
       <a href="#options">Options</a>
       <a class="gh" href="https://github.com/Hiruna01/ascii-koi">GitHub</a>
     </nav>
@@ -112,6 +113,20 @@ pond.destroy();</code></pre>
         </li>
       </ol>
       <p class="muted">The only interaction: when your pointer is on a fish, it startles like a real fish. A sharp bend to one side, a burst of strong tail beats, then a long glide back to calm.</p>
+    </section>
+
+    <section id="koi" class="panel gallery">
+      <div class="gallery-head">
+        <div>
+          <h2>Meet the koi</h2>
+          <p class="muted">Every variety in the pond, drawn live by the same shader. Switch between the two styles.</p>
+        </div>
+        <div class="seg gallery-toggle" role="radiogroup" aria-label="Gallery style">
+          <button type="button" role="radio" aria-checked="true" data-gallery="koi">Real koi</button>
+          <button type="button" role="radio" aria-checked="false" data-gallery="ink">Blue dithered</button>
+        </div>
+      </div>
+      <ul class="koi-grid" id="koi-grid"></ul>
     </section>
 
     <section id="options" class="panel">
@@ -235,5 +250,6 @@ pond.destroy();</code></pre>
 
   <script src="koi-pond.min.js?v=dev"></script>
   <script src="main.js?v=dev"></script>
+  <script src="gallery.js?v=dev"></script>
 </body>
 </html>

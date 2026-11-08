@@ -1029,6 +1029,8 @@ var DEFAULTS = Object.freeze({
   // size multiplier on top of fishSize (0.5 = half, 2 = double); changes resize fish live
   butterfly: 0,
   // share of butterfly koi with long, flowing fins (0 = none, 0.2 = about 1 in 5, 1 = all)
+  still: false,
+  // true: fish stay where they are placed and only move their body, tail and fins
   varieties: "all",
   // which koi varieties swim: 'all', or names like ['kohaku', 'showa', 'ogon'] (see VARIETY_NAMES)
   colors: "ink",
@@ -1249,7 +1251,15 @@ function createKoiPond(options = {}) {
       pointer: opts.interactive ? pointer : null,
       rng
     };
-    for (const f of fishes) stepFish(f, dt, time, stepOpts);
+    if (opts.still) {
+      const k = stepOpts.speed;
+      for (const f of fishes) {
+        f.phase += TAU * 0.8 * dt * k;
+        f.finPhase += TAU * 0.6 * dt * k;
+      }
+    } else {
+      for (const f of fishes) stepFish(f, dt, time, stepOpts);
+    }
     draw();
     schedule();
   }
