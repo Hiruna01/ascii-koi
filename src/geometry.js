@@ -96,14 +96,14 @@ function writeFish(f) {
   // --- Paired fins first: they sit under the body.
   const pect = Math.round(SPINE_SEGMENTS * 0.2);
   const pelv = Math.round(SPINE_SEGMENTS * 0.56);
-  pairedFins(f, pect, L * 0.24, L * 0.11, 0.95, 0.3, 0);
-  pairedFins(f, pelv, L * 0.15, L * 0.065, 0.8, 0.18, 2.1);
+  pairedFins(f, pect, L * 0.21, L * 0.09, 0.62, 0.22, 0);
+  pairedFins(f, pelv, L * 0.12, L * 0.048, 0.5, 0.14, 2.1);
 
   // --- Tail fin: a wide fan continuing from the tail stem, lagging the beat.
   {
     const e = SPINE_SEGMENTS;
     const base = Math.atan2(py[e] - py[e - 1], px[e] - px[e - 1]);
-    const tailLen = L * 0.38;
+    const tailLen = L * 0.33;
     const step = tailLen / (TAIL_ROWS - 1);
     let prev = null;
     let cx = px[e];
@@ -115,7 +115,7 @@ function writeFish(f) {
         cx += Math.cos(ang) * step;
         cy += Math.sin(ang) * step;
       }
-      const hw = L * (0.035 + 0.24 * Math.pow(t, 0.9));
+      const hw = L * (0.03 + 0.19 * Math.pow(t, 0.85));
       const qx = -Math.sin(ang);
       const qy = Math.cos(ang);
       const row = { lx: cx - qx * hw, ly: cy - qy * hw, rx: cx + qx * hw, ry: cy + qy * hw, t };
@@ -128,8 +128,8 @@ function writeFish(f) {
   for (let i = 0; i < SPINE_SEGMENTS; i++) {
     const ua = i / SPINE_SEGMENTS;
     const ub = (i + 1) / SPINE_SEGMENTS;
-    // The nose gets a little width so the blunt head reads well.
-    const wa = Math.max(bodyHalfWidth(ua), 0.05) * L;
+    // A little width at the very tip keeps the rounded snout from collapsing to a point.
+    const wa = Math.max(bodyHalfWidth(ua), 0.03) * L;
     const wb = bodyHalfWidth(ub) * L;
     const j = i + 1;
     quad(

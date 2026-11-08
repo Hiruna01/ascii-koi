@@ -44,23 +44,65 @@ export function angleDiff(to, from) {
 }
 
 /**
- * Half-width of the body (as a fraction of body length) at position u along
- * the spine, u = 0 at the nose, u = 1 at the root of the tail.
+ * Top-view koi outline: half-width (as a fraction of body length) at points
+ * along the spine, u = 0 at the snout, u = 1 at the root of the tail.
+ * Spindle shape: a narrower head that tapers to a rounded snout, the widest
+ * point just behind the head (about a third of the way back), then a long,
+ * even taper to a slim tail stem. Measured against the reference fish.
  */
+const OUTLINE = [
+  [0.0, 0.0],
+  [0.025, 0.0495],
+  [0.07, 0.0814],
+  [0.14, 0.1078],
+  [0.23, 0.1276],
+  [0.32, 0.1364],
+  [0.42, 0.132],
+  [0.54, 0.1144],
+  [0.66, 0.088],
+  [0.77, 0.0627],
+  [0.88, 0.044],
+  [1.0, 0.0363],
+];
+
+// Tangents for a smooth (cubic Hermite) curve through the outline points.
+const OUTLINE_T = OUTLINE.map((p, i) => {
+  const a = OUTLINE[Math.max(0, i - 1)];
+  const b = OUTLINE[Math.min(OUTLINE.length - 1, i + 1)];
+  return (b[1] - a[1]) / (b[0] - a[0]);
+});
+
 export function bodyHalfWidth(u) {
-  // Blunt, rounded head; widest around a third of the way back; slim tail stem.
-  const nose = Math.pow(clamp(u / 0.16, 0, 1), 0.42);
-  const taper = 1 - 0.8 * Math.pow(smoothstep(0.34, 1, u), 0.9);
-  return 0.17 * nose * taper;
+  if (u <= 0) return 0;
+  if (u >= 1) return OUTLINE[OUTLINE.length - 1][1];
+  // Rounded snout: a quarter ellipse over the first few percent.
+  if (u < OUTLINE[1][0]) {
+    const k = u / OUTLINE[1][0];
+    return OUTLINE[1][1] * Math.sqrt(1 - (1 - k) * (1 - k));
+  }
+  let i = 1;
+  while (u > OUTLINE[i + 1][0]) i++;
+  const [u0, w0] = OUTLINE[i];
+  const [u1, w1] = OUTLINE[i + 1];
+  const h = u1 - u0;
+  const t = (u - u0) / h;
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return (
+    (2 * t3 - 3 * t2 + 1) * w0 +
+    (t3 - 2 * t2 + t) * h * OUTLINE_T[i] +
+    (-2 * t3 + 3 * t2) * w1 +
+    (t3 - t2) * h * OUTLINE_T[i + 1]
+  );
 }
 
 /** Default fish length for a viewport, in CSS pixels. */
 export function defaultFishSize(width, height) {
-  return clamp(Math.min(width, height) * 0.115, 54, 120);
+  return clamp(Math.min(width, height) * 0.105, 50, 112);
 }
 
 export function createFish(rng, bounds, size) {
-  const length = size * (0.72 + rng() * 0.5);
+  const length = size * (0.8 + rng() * 0.38);
   const segLen = length / SPINE_SEGMENTS;
   const margin = Math.min(length, Math.min(bounds.width, bounds.height) * 0.25);
   const x = margin + rng() * Math.max(1, bounds.width - 2 * margin);

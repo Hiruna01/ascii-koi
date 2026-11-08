@@ -28,16 +28,47 @@ function angleDiff(to, from) {
   if (d <= -Math.PI) d += TAU;
   return d;
 }
+var OUTLINE = [
+  [0, 0],
+  [0.025, 0.0495],
+  [0.07, 0.0814],
+  [0.14, 0.1078],
+  [0.23, 0.1276],
+  [0.32, 0.1364],
+  [0.42, 0.132],
+  [0.54, 0.1144],
+  [0.66, 0.088],
+  [0.77, 0.0627],
+  [0.88, 0.044],
+  [1, 0.0363]
+];
+var OUTLINE_T = OUTLINE.map((p, i) => {
+  const a = OUTLINE[Math.max(0, i - 1)];
+  const b = OUTLINE[Math.min(OUTLINE.length - 1, i + 1)];
+  return (b[1] - a[1]) / (b[0] - a[0]);
+});
 function bodyHalfWidth(u) {
-  const nose = Math.pow(clamp(u / 0.16, 0, 1), 0.42);
-  const taper = 1 - 0.8 * Math.pow(smoothstep(0.34, 1, u), 0.9);
-  return 0.17 * nose * taper;
+  if (u <= 0) return 0;
+  if (u >= 1) return OUTLINE[OUTLINE.length - 1][1];
+  if (u < OUTLINE[1][0]) {
+    const k = u / OUTLINE[1][0];
+    return OUTLINE[1][1] * Math.sqrt(1 - (1 - k) * (1 - k));
+  }
+  let i = 1;
+  while (u > OUTLINE[i + 1][0]) i++;
+  const [u0, w0] = OUTLINE[i];
+  const [u1, w1] = OUTLINE[i + 1];
+  const h = u1 - u0;
+  const t = (u - u0) / h;
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return (2 * t3 - 3 * t2 + 1) * w0 + (t3 - 2 * t2 + t) * h * OUTLINE_T[i] + (-2 * t3 + 3 * t2) * w1 + (t3 - t2) * h * OUTLINE_T[i + 1];
 }
 function defaultFishSize(width, height) {
-  return clamp(Math.min(width, height) * 0.115, 54, 120);
+  return clamp(Math.min(width, height) * 0.105, 50, 112);
 }
 function createFish(rng, bounds, size) {
-  const length = size * (0.72 + rng() * 0.5);
+  const length = size * (0.8 + rng() * 0.38);
   const segLen = length / SPINE_SEGMENTS;
   const margin = Math.min(length, Math.min(bounds.width, bounds.height) * 0.25);
   const x = margin + rng() * Math.max(1, bounds.width - 2 * margin);
@@ -263,12 +294,12 @@ function writeFish(f) {
   }
   const pect = Math.round(SPINE_SEGMENTS * 0.2);
   const pelv = Math.round(SPINE_SEGMENTS * 0.56);
-  pairedFins(f, pect, L * 0.24, L * 0.11, 0.95, 0.3, 0);
-  pairedFins(f, pelv, L * 0.15, L * 0.065, 0.8, 0.18, 2.1);
+  pairedFins(f, pect, L * 0.21, L * 0.09, 0.62, 0.22, 0);
+  pairedFins(f, pelv, L * 0.12, L * 0.048, 0.5, 0.14, 2.1);
   {
     const e = SPINE_SEGMENTS;
     const base = Math.atan2(py[e] - py[e - 1], px[e] - px[e - 1]);
-    const tailLen = L * 0.38;
+    const tailLen = L * 0.33;
     const step = tailLen / (TAIL_ROWS - 1);
     let prev = null;
     let cx = px[e];
@@ -280,7 +311,7 @@ function writeFish(f) {
         cx += Math.cos(ang) * step;
         cy += Math.sin(ang) * step;
       }
-      const hw = L * (0.035 + 0.24 * Math.pow(t, 0.9));
+      const hw = L * (0.03 + 0.19 * Math.pow(t, 0.85));
       const qx = -Math.sin(ang);
       const qy = Math.cos(ang);
       const row = { lx: cx - qx * hw, ly: cy - qy * hw, rx: cx + qx * hw, ry: cy + qy * hw, t };
@@ -291,7 +322,7 @@ function writeFish(f) {
   for (let i = 0; i < SPINE_SEGMENTS; i++) {
     const ua = i / SPINE_SEGMENTS;
     const ub = (i + 1) / SPINE_SEGMENTS;
-    const wa = Math.max(bodyHalfWidth(ua), 0.05) * L;
+    const wa = Math.max(bodyHalfWidth(ua), 0.03) * L;
     const wb = bodyHalfWidth(ub) * L;
     const j = i + 1;
     quad(
